@@ -16,6 +16,25 @@ export class Store {
       });
     }
   }
+  // 新增状态管理相关方法
+  createStore(reducer, initialState) {
+    let state = initialState;
+    const listeners = new Set();
+
+    const store = {
+      getState: () => state,
+      dispatch: (action) => {
+        state = reducer(state, action);
+        listeners.forEach((listener) => listener());
+      },
+      subscribe: (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    };
+    this.$store = store;
+    return store;
+  }
 
   observe(state) {
     const handler = {

@@ -368,17 +368,45 @@ export class Component {
       });
     }
 
-    // 新增过渡动画相关属性
+    // 过渡动画相关属性
     this.transition = options?.transition || null;
     this.transitionClasses = {
       enter: "v-enter",
       enterActive: "v-enter-active",
       leave: "v-leave",
       leaveActive: "v-leave-active",
+      fadeEnter: "fade-enter",
+      fadeEnterActive: "fade-enter-active",
+      fadeLeave: "fade-leave",
+      fadeLeaveActive: "fade-leave-active",
+      scaleEnter: "scale-enter",
+      scaleEnterActive: "scale-enter-active",
+      scaleLeave: "scale-leave",
+      scaleLeaveActive: "scale-leave-active",
+      slideEnter: "slide-enter",
+      slideEnterActive: "slide-enter-active",
+      slideLeave: "slide-leave",
+      slideLeaveActive: "slide-leave-active",
+      ...options?.transitionClasses,
     };
+    // 新增性能优化相关属性
+    this._debounceUpdate = null; // 防抖更新
+    this._throttleUpdate = null; // 节流更新
+    this._updateQueue = new Set(); // 批量更新队列
+    this._isUpdating = false; // 是否正在更新
+
+    // 增强错误处理
+    this._errorHandler = (error) => {
+      console.error(`[${this.name}] Error:`, error);
+      XRender._errorHandler?.(error);
+    };
+    // 新增 Mixins 支持
+    this.mixins = options?.mixins || [];
+
     return this;
   }
   init() {
+    this._applyMixins();
     this.initComputed();
     // 初始化观察者
     this.initWatcher();
@@ -388,6 +416,68 @@ export class Component {
     this.setup();
     this.options?.mounted?.call(this);
     return this;
+  }
+  // 新增 Mixins 应用方法
+  _applyMixins() {
+    this.mixins.forEach((mixin) => {
+      // 合并 data
+      if (mixin.data) {
+        const mixinData =
+          typeof mixin.data === "function" ? mixin.data() : mixin.data;
+        this.data = { ...mixinData, ...this.data };
+      }
+
+      // 合并 methods
+      if (mixin.methods) {
+        this.methods = { ...mixin.methods, ...this.methods };
+      }
+
+      // 合并生命周期钩子
+      ["beforeMount", "beforeUpdate", "updated", "beforeUnmount"].forEach(
+        (hook) => {
+          const mixinHook = mixin[hook];
+          const originalHook = this[hook];
+
+          if (mixinHook) {
+            this[hook] = function () {
+              mixinHook.call(this);
+              if (originalHook) {
+                originalHook.call(this);
+              }
+            };
+          }
+        }
+      );
+
+      // 合并 computed
+      if (mixin.computed) {
+        this.computed = { ...mixin.computed, ...this.computed };
+      }
+
+      // 合并 watch
+      if (mixin.watch) {
+        this.watch = { ...mixin.watch, ...this.watch };
+      }
+    });
+  }
+  // 包装方法调用
+  _safeCall(fn, ...args) {
+    try {
+      return fn.call(this, ...args);
+    } catch (error) {
+      this._errorHandler(error);
+    }
+  }
+  // 新增批量更新方法
+  batchUpdate() {
+    if (this._isUpdating) return;
+    this._isUpdating = true;
+
+    requestAnimationFrame(() => {
+      this.update();
+      this._isUpdating = false;
+      this._updateQueue.clear();
+    });
   }
   // 新增缓存方法
   cache() {
@@ -411,16 +501,28 @@ export class Component {
   applyTransition(el, type) {
     if (!this.transition) return;
     const classes = this.transitionClasses;
+    const duration = this.transition.duration || 300; // 默认过渡时间为 300ms
+
+    // 根据过渡名称获取对应的类名
+    const prefix = this.transition.name ? `${this.transition.name}-` : "v-";
+    const enterClass = `${prefix}enter`;
+    const enterActiveClass = `${prefix}enter-active`;
+    const leaveClass = `${prefix}leave`;
+    const leaveActiveClass = `${prefix}leave-active`;
+
     if (type === "enter") {
-      el.classList.add(classes.enter, classes.enterActive);
+      el.classList.add(enterClass, enterActiveClass);
       setTimeout(() => {
-        el.classList.remove(classes.enter);
+        el.classList.remove(enterClass);
       }, 0);
-    } else if (type === "leave") {
-      el.classList.add(classes.leave, classes.leaveActive);
       setTimeout(() => {
-        el.classList.remove(classes.leave, classes.leaveActive);
-      }, 300);
+        el.classList.remove(enterActiveClass);
+      }, duration);
+    } else if (type === "leave") {
+      el.classList.add(leaveClass, leaveActiveClass);
+      setTimeout(() => {
+        el.classList.remove(leaveClass, leaveActiveClass);
+      }, duration);
     }
   }
   initComputed() {
@@ -488,20 +590,101 @@ export class Component {
   // 新增更新机制
   update() {
     const that = this;
-    this.beforeUpdate?.call(this);
-    if (this.isMounted) {
-      const newEl = this.render.call(that, function () {
-        return createElem.call(that, ...arguments);
-      });
-      this.el.parentNode?.replaceChild(newEl, this.el);
-      this.el = newEl;
+    if (this._debounceUpdate) {
+      clearTimeout(this._debounceUpdate);
     }
-    this.updated?.call(this);
+    this._debounceUpdate = setTimeout(() => {
+      that.beforeUpdate?.call(that);
+      if (that.isMounted) {
+        const newEl = that.render.call(that, function () {
+          return createElem.call(that, ...arguments);
+        });
+        that.el.parentNode?.replaceChild(newEl, that.el);
+        that.el = newEl;
+      }
+      that.updated?.call(that);
+    }, 16);
   }
   unmount() {
-    this.beforeUnmount?.call(this);
-    this.el.parentNode?.removeChild(this.el);
-    this.isMounted = false;
+    if (this.transition) {
+      // 应用离开过渡
+      this.applyTransition(this.el, "leave");
+      setTimeout(() => {
+        // 调用 beforeUnmount 钩子
+        this.beforeUnmount?.call(this);
+
+        // 清理事件监听器
+        if (this._eventHandlers) {
+          this._eventHandlers.forEach(({ elem, eventName, handler }) => {
+            elem.removeEventListener(eventName, handler);
+          });
+          this._eventHandlers = null;
+        }
+
+        // 清理 DOM 元素
+        if (this.el && this.el.parentNode) {
+          this.el.parentNode.removeChild(this.el);
+        }
+
+        // 清理数据观察
+        this.data = null;
+
+        // 清理计算属性
+        this.computed = null;
+
+        // 清理方法
+        this.methods = null;
+
+        // 清理 watch
+        this.watch = null;
+
+        // 清理 slots
+        this.$slots = null;
+
+        // 标记为未挂载
+        this.isMounted = false;
+
+        // 清理父组件引用
+        this.parent = null;
+      }, this.transition.duration || 300);
+    } else {
+      // 调用 beforeUnmount 钩子
+      this.beforeUnmount?.call(this);
+
+      // 清理事件监听器
+      if (this._eventHandlers) {
+        this._eventHandlers.forEach(({ elem, eventName, handler }) => {
+          elem.removeEventListener(eventName, handler);
+        });
+        this._eventHandlers = null;
+      }
+
+      // 清理 DOM 元素
+      if (this.el && this.el.parentNode) {
+        this.el.parentNode.removeChild(this.el);
+      }
+
+      // 清理数据观察
+      this.data = null;
+
+      // 清理计算属性
+      this.computed = null;
+
+      // 清理方法
+      this.methods = null;
+
+      // 清理 watch
+      this.watch = null;
+
+      // 清理 slots
+      this.$slots = null;
+
+      // 标记为未挂载
+      this.isMounted = false;
+
+      // 清理父组件引用
+      this.parent = null;
+    }
   }
   setup() {
     const vm = this;
@@ -515,6 +698,10 @@ export class Component {
       Object.entries(this.methods).forEach(([key, value]) => {
         vm[key] = value.bind(vm);
       });
+    }
+    // 应用进入过渡
+    if (this.transition) {
+      this.applyTransition(this.el, "enter");
     }
     this.isMounted = true;
   }
@@ -582,13 +769,16 @@ export const XRender = {
   },
   use(plugin) {
     if (this._installedPlugins.includes(plugin)) return this;
+    try {
+      const installFn = typeof plugin === "function" ? plugin : plugin.install;
+      if (typeof installFn === "function") {
+        installFn.call(plugin, this);
+      }
 
-    const installFn = typeof plugin === "function" ? plugin : plugin.install;
-    if (typeof installFn === "function") {
-      installFn.call(plugin, this);
+      this._installedPlugins.push(plugin);
+    } catch (error) {
+      this._errorHandler?.(error);
     }
-
-    this._installedPlugins.push(plugin);
     return this;
   },
   query(selector) {
@@ -635,6 +825,22 @@ export const XRender = {
       that.el.appendChild(child);
     });
     return this;
+  },
+  unmountComponent(component) {
+    if (component && component.unmount) {
+      component.unmount();
+    }
+  },
+  // 新增测试相关方法
+  __test__: {
+    reset() {
+      this.components = {};
+      this._installedPlugins = [];
+      this.$store = null;
+      this.$router = null;
+      this.$i18n = null;
+      this.App = null;
+    },
   },
 };
 window.$ = XRender;

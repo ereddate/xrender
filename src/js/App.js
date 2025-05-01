@@ -4,6 +4,10 @@ import inputPanel from "./components/inputPanel.js";
 import "../css/App.scss";
 
 const App = $.component("App", {
+  transition: {
+    name: "fade", // 过渡名称
+    duration: 500, // 过渡持续时间
+  },
   render(createElem) {
     return createElem(
       "div",
