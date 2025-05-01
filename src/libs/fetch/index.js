@@ -74,9 +74,17 @@ class Fetch {
   }
 
   // 注册模拟数据
-  mock(url, method, response, skipFields = []) {
+  mock(url, method, response, count, skipFields = []) {
+    if (Array.isArray(count)) {
+      skipFields = count;
+      count = 1;
+    } else if (typeof response === "function") {
+      count = 1;
+      skipFields = [];
+    }
     this.mockData.set(`${method.toUpperCase()} ${url}`, {
       response,
+      count,
       skipFields,
     });
   }
@@ -112,9 +120,12 @@ class Fetch {
         // 检查是否有匹配的模拟数据
         const mockKey = `${config.method.toUpperCase()} ${config.url}`;
         if (this.mockData.has(mockKey)) {
-          const { response, skipFields } = this.mockData.get(mockKey);
+          const { response, count, skipFields } = this.mockData.get(mockKey);
+          const data = Array.from({ length: count }, () =>
+            this._generateRandomData(response, skipFields)
+          );
           return Promise.resolve({
-            data: this._generateRandomData(response, skipFields),
+            data: count === 1 ? data[0] : data, // 如果数量为1，返回单个对象；否则返回数组
             status: 200,
             statusText: "OK",
             config,

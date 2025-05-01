@@ -28,6 +28,21 @@ request.mock(
   "/api/user",
   "GET",
   {
+    id: "number",
+    name: "string",
+    age: ["number", () => Math.floor(Math.random() * 100)],
+    isActive: "boolean",
+    createdAt: "date",
+    tags: [3, "string"],
+    city: "string",
+    zipCode: "number",
+  },
+  10
+);
+/* request.mock(
+  "/api/user",
+  "GET",
+  {
     code: 200,
     data: {
       id: "number",
@@ -42,7 +57,7 @@ request.mock(
     message: "Mocked Data",
   },
   ["code", "message"]
-);
+); */
 
 // 注册常规格式的模拟数据
 request.mock("/api/data", "GET", () => ({
