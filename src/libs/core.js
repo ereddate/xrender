@@ -211,6 +211,17 @@ const createElem = function (tagName, attributes = {}, ...children) {
       tagName = $.components[componentName];
     }
   }
+  if (tagName === "transition") {
+    tagName = "div";
+    const wrapper = doc.createElement(tagName);
+    const { name } = attributes;
+    that.applyTransition(wrapper, "enter", {
+      name,
+      duration: 500,
+    });
+    elemChildren.call(that, wrapper, children);
+    return wrapper;
+  }
   // 前置处理 v-if 指令
   if (attributes["v-if"]) {
     try {
@@ -498,13 +509,16 @@ export class Component {
     return this.el.outerHTML;
   }
   // 新增过渡动画方法
-  applyTransition(el, type) {
+  applyTransition(el, type, options = {}) {
     if (!this.transition) return;
     const classes = this.transitionClasses;
-    const duration = this.transition.duration || 300; // 默认过渡时间为 300ms
+    const duration = options.duration || this.transition.duration || 300; // 默认过渡时间为 300ms
 
     // 根据过渡名称获取对应的类名
-    const prefix = this.transition.name ? `${this.transition.name}-` : "v-";
+    const prefix =
+      options.name || this.transition.name
+        ? `${options.name || this.transition.name}-`
+        : "v-";
     const enterClass = `${prefix}enter`;
     const enterActiveClass = `${prefix}enter-active`;
     const leaveClass = `${prefix}leave`;

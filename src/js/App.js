@@ -16,13 +16,17 @@ const App = $.component("App", {
         "slot:text": createElem("h2", {}, "Hello World"),
       }),
       createElem(
-        "div",
-        { class: "content" },
-        "$t('content')",
-        createElem("h1", {}, "Hello World"),
-        inputPanel,
-        createElem("p", {}, "{{username}}"),
-        createElem("router-view")
+        "transition",
+        { name: "scale" },
+        createElem(
+          "div",
+          { class: "content" },
+          "$t('content')",
+          createElem("h1", {}, "Hello World"),
+          inputPanel,
+          createElem("p", {}, "{{username}}"),
+          createElem("router-view")
+        )
       ),
       createElem(myFooter, {
         slot: createElem("p", {}, "Copyright 2025. XRender Demo."),
