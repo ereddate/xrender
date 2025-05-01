@@ -99,7 +99,7 @@ const elemAttrs = function (elem, attributes) {
 
         that.methods[value].call(that, e);
       };
-      on(elem, eventName, handler);
+      (XRender.on || on)(elem, eventName, handler);
       that._eventHandlers = that._eventHandlers || [];
       that._eventHandlers.push({ elem, eventName, handler });
     } else if (key === "slot") {
@@ -121,7 +121,7 @@ const elemAttrs = function (elem, attributes) {
       const prop = elem.type === "checkbox" ? "checked" : "value";
 
       elem[prop] = that.data[value];
-      on(elem, updateEvent, (e) => {
+      (XRender.on || on)(elem, updateEvent, (e) => {
         that.data[value] = elem[prop];
       });
     } // 新增 v-for 指令
@@ -829,6 +829,21 @@ export const XRender = {
   unmountComponent(component) {
     if (component && component.unmount) {
       component.unmount();
+    }
+  },
+  // 新增 nextTick 方法
+  nextTick(callback) {
+    const that = this;
+    if (typeof Promise !== "undefined") {
+      // 使用 Promise 实现
+      Promise.resolve().then(() => {
+        callback.call(that, ...arguments);
+      });
+    } else {
+      // 降级使用 setTimeout
+      setTimeout(() => {
+        callback.call(that, ...arguments);
+      }, 0);
     }
   },
   // 新增测试相关方法
