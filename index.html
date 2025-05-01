@@ -3,94 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="src/css/styles.css" />
-    <title>Document</title>
+    <title>XRender Demo</title>
   </head>
   <body>
     <div id="app"></div>
-    <script src="src/js/main.js"></script>
-    <script>
-      const myAddBtn = $.component("MyAddBtn", {
-        render(createElem) {
-          return createElem(
-            "button",
-            { class: "btn", "@click": "clickHandle" },
-            createElem("span", { ":text": "text" }),
-            createElem("span", {}, "{{count}}")
-          );
-        },
-        data() {
-          return {
-            text: this.data.text || "Add",
-            count: 0,
-          };
-        },
-        methods: {
-          clickHandle() {
-            this.count++;
-          },
-        },
-      });
-      const myBtn = $.component("MyBtn", {
-        render(createElem) {
-          return createElem(
-            "button",
-            { class: "btn", "@click": "clickHandle" },
-            createElem("span", { "v-text": "text" })
-          );
-        },
-        data() {
-          return {
-            text: "Click me",
-          };
-        },
-        methods: {
-          clickHandle() {
-            alert("Hello World");
-          },
-        },
-      });
-      const myHeader = $.component("MyHeader", {
-        render(createElem) {
-          return createElem(
-            "header",
-            { class: "header", "v-bind:text": "text" },
-            createElem("slot", { name: "text" }),
-            createElem(myBtn, { text: "{{text}}" }),
-            createElem(myAddBtn, { ":text": "text" })
-          );
-        },
-        data() {
-          return {
-            text: "Header",
-          };
-        },
-      });
-      const myFooter = $.component("MyFooter", {
-        render(createElem) {
-          return createElem(
-            "footer",
-            { class: "footer", text: "footer" },
-            createElem("slot"),
-            myBtn
-          );
-        },
-      });
-      const App = $.component("App", {
-        render(createElem) {
-          return createElem(
-            "div",
-            { class: "app" },
-            createElem("h1", {}, "Hello World"),
-            createElem(myHeader, {
-              "slot:text": createElem("h2", {}, "Hello World"),
-            }),
-            createElem(myFooter, { slot: createElem("p", {}, "Hello World") })
-          );
-        },
-      });
-      $.query("#app").append(App);
-      console.log($);
-    </script>
+    <script type="module" src="src/main.js"></script>
   </body>
 </html>
