@@ -23,13 +23,16 @@ const App = $.component("App", {
           { class: "content" },
           "$t('content')",
           createElem("h1", {}, "Hello World"),
-          inputPanel,
+          $.lazyLoad(inputPanel, createElem("p", {}, "loading...")),
           createElem("p", {}, "{{username}}"),
           createElem("router-view")
         )
       ),
       createElem(myFooter, {
-        slot: createElem("p", {}, "Copyright 2025. XRender Demo."),
+        slot: $.lazyLoad(
+          createElem("p", {}, "Copyright 2025. XRender Demo."),
+          createElem("p", {}, "loading...")
+        ),
       })
     );
   },

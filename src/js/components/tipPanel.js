@@ -1,6 +1,6 @@
 const tipPanel = $.component("Tip", {
   render(createElem) {
-    return `<div class="tip">${this.data.text}</div>`;
+    return createElem("div", { class: "tip" }, `${this.data.text}`);
   },
   data() {
     return {

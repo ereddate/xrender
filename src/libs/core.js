@@ -8,7 +8,20 @@ const createElement = function (tagName) {
   return elem;
 };
 const on = function (elem, eventName, handler) {
-  elem.addEventListener(eventName, handler);
+  if (!elem._eventDelegation) {
+    elem._eventDelegation = {};
+    elem.addEventListener(eventName, function (e) {
+      const handlers = elem._eventDelegation[eventName];
+      if (handlers) {
+        handlers.forEach((h) => h(e));
+      }
+    });
+  }
+
+  if (!elem._eventDelegation[eventName]) {
+    elem._eventDelegation[eventName] = [];
+  }
+  elem._eventDelegation[eventName].push(handler);
 };
 const elemChildren = function (elem, children) {
   const that = this;
@@ -222,6 +235,10 @@ const createElem = function (tagName, attributes = {}, ...children) {
     elemChildren.call(that, wrapper, children);
     return wrapper;
   }
+  if (attributes["static"]) {
+    elem.setAttribute("data-static", "true");
+    return elem;
+  }
   // 前置处理 v-if 指令
   if (attributes["v-if"]) {
     try {
@@ -310,11 +327,6 @@ const createElem = function (tagName, attributes = {}, ...children) {
   const elem = createElement(tagName);
   elemAttrs.call(that, elem, attributes);
   elemChildren.call(that, elem, children);
-  that.vnode = new VNode(
-    tagName,
-    attributes,
-    children.flat().filter((c) => c !== null && c !== undefined)
-  );
   return elem;
 };
 
@@ -329,6 +341,7 @@ class VNode {
     this.isStatic = attrs?.isStatic || false;
     // 新增缓存标识
     this.cacheKey = attrs?.cacheKey || null;
+    this.el = null;
   }
 }
 
@@ -416,7 +429,15 @@ export class Component {
 
     return this;
   }
+
   init() {
+    if (this._cacheKey) {
+      const cached = this.getFromCache(this._cacheKey);
+      if (cached) {
+        this.el = cached;
+        return this;
+      }
+    }
     this._applyMixins();
     this.initComputed();
     // 初始化观察者
@@ -428,6 +449,11 @@ export class Component {
     this.options?.mounted?.call(this);
     return this;
   }
+
+  getFromCache(key) {
+    return this.parent?._cache?.[key];
+  }
+
   // 新增 Mixins 应用方法
   _applyMixins() {
     this.mixins.forEach((mixin) => {
@@ -471,6 +497,7 @@ export class Component {
       }
     });
   }
+
   // 包装方法调用
   _safeCall(fn, ...args) {
     try {
@@ -479,6 +506,7 @@ export class Component {
       this._errorHandler(error);
     }
   }
+
   // 新增批量更新方法
   batchUpdate() {
     if (this._isUpdating) return;
@@ -490,6 +518,7 @@ export class Component {
       this._updateQueue.clear();
     });
   }
+
   // 新增缓存方法
   cache() {
     this._cache = this.el.cloneNode(true);
@@ -503,11 +532,13 @@ export class Component {
       this._cache = null;
     }
   }
+
   // 新增 SSR 渲染方法
   renderToString() {
     if (!this.isServer) return "";
     return this.el.outerHTML;
   }
+
   // 新增过渡动画方法
   applyTransition(el, type, options = {}) {
     if (!this.transition) return;
@@ -539,6 +570,7 @@ export class Component {
       }, duration);
     }
   }
+
   initComputed() {
     Object.entries(this.computed).forEach(([key, fn]) => {
       Object.defineProperty(this.data, key, {
@@ -553,6 +585,7 @@ export class Component {
       });
     });
   }
+
   // 数据响应式实现
   observe(data) {
     const vm = this;
@@ -570,8 +603,9 @@ export class Component {
         target[key] = value;
         // 触发更新
         if (oldVal !== value) {
-          vm.update();
-          vm.triggerWatch(key, value, oldVal);
+          XRender.queueUpdate(vm);
+          /* vm.update();
+          vm.triggerWatch(key, value, oldVal); */
         }
         return true;
       },
@@ -585,6 +619,7 @@ export class Component {
       callbacks.forEach((cb) => cb(...args));
     }
   }
+
   // 观察者模式实现
   initWatcher() {
     if (this.watch) {
@@ -604,6 +639,12 @@ export class Component {
   // 新增更新机制
   update() {
     const that = this;
+    if (this.el.getAttribute("data-static") === "true") {
+      return;
+    }
+    if (this._cacheKey) {
+      this.cache(this._cacheKey);
+    }
     if (this._debounceUpdate) {
       clearTimeout(this._debounceUpdate);
     }
@@ -616,9 +657,12 @@ export class Component {
         that.el.parentNode?.replaceChild(newEl, that.el);
         that.el = newEl;
       }
-      that.updated?.call(that);
+      XRender.nextTick(() => {
+        that.updated?.call(that);
+      });
     }, 16);
   }
+
   unmount() {
     if (this.transition) {
       // 应用离开过渡
@@ -747,6 +791,21 @@ export const XRender = {
   afterEach(guard) {
     this._routerGuards.afterEach.push(guard);
   },
+  _updateQueue: [],
+  _isUpdating: false,
+
+  queueUpdate(component) {
+    this._updateQueue.push(component);
+    if (!this._isUpdating) {
+      this._isUpdating = true;
+      Promise.resolve().then(() => {
+        this._isUpdating = false;
+        const queue = this._updateQueue.slice(0);
+        this._updateQueue.length = 0;
+        queue.forEach((c) => c.update());
+      });
+    }
+  },
   createApp(options) {
     const that = this;
     try {
@@ -845,20 +904,66 @@ export const XRender = {
       component.unmount();
     }
   },
+  _nextTickCallbacks: [],
+  _pending: false,
+
   // 新增 nextTick 方法
   nextTick(callback) {
     const that = this;
-    if (typeof Promise !== "undefined") {
-      // 使用 Promise 实现
+    this._nextTickCallbacks.push(callback);
+    if (!that._pending) {
+      that._pending = true;
       Promise.resolve().then(() => {
-        callback.call(that, ...arguments);
+        that._pending = false;
+        const copies = that._nextTickCallbacks.slice(0);
+        that._nextTickCallbacks.length = 0;
+        for (let i = 0; i < copies.length; i++) {
+          copies[i]();
+        }
       });
-    } else {
-      // 降级使用 setTimeout
-      setTimeout(() => {
-        callback.call(that, ...arguments);
-      }, 0);
     }
+  },
+  lazyLoad(component, placeholder) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          if (isComponent(component)) {
+            const loadedComponent = new component.constructor(
+              component.name,
+              { ...component.options },
+              XRender
+            ).init();
+            entry.target.replaceWith(loadedComponent.el);
+          } else {
+            entry.target.replaceWith(component);
+          }
+          observer.unobserve(entry.target);
+        }
+      });
+    });
+
+    observer.observe(placeholder);
+    return placeholder;
+  },
+  asyncComponent(loader) {
+    return {
+      name: "AsyncComponent",
+      data() {
+        return {
+          component: null,
+        };
+      },
+      async mounted() {
+        this.component = await loader();
+        this.update();
+      },
+      render() {
+        if (this.component) {
+          return createElem(this.component);
+        }
+        return createElem("div", {}, "加载中...");
+      },
+    };
   },
   // 新增测试相关方法
   __test__: {
