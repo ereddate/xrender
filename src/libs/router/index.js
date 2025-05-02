@@ -143,7 +143,7 @@ export class Router {
           ...component.options,
         }).init();
         routerView.appendChild(component.el);
-      } /* else {
+      } /*  else {
         console.error("router-view not found in rootElement");
       } */
     }

@@ -26,7 +26,10 @@ const on = function (elem, eventName, handler) {
 const elemChildren = function (elem, children) {
   const that = this;
   const append = function (child) {
-    elem.appendChild(child);
+    if (Array.isArray(child)) {
+      child.forEach(append);
+      return;
+    } else elem.appendChild(child);
   };
   children.length > 0 &&
     children.forEach((child) => {
@@ -603,7 +606,7 @@ export class Component {
         target[key] = value;
         // 触发更新
         if (oldVal !== value) {
-          XRender.queueUpdate(vm);
+          XRender.queueUpdate(vm, key, value, oldVal);
           /* vm.update();
           vm.triggerWatch(key, value, oldVal); */
         }
@@ -656,6 +659,7 @@ export class Component {
         });
         that.el.parentNode?.replaceChild(newEl, that.el);
         that.el = newEl;
+        //that.$router && that.$router.render();
       }
       XRender.nextTick(() => {
         that.updated?.call(that);
@@ -794,7 +798,7 @@ export const XRender = {
   _updateQueue: [],
   _isUpdating: false,
 
-  queueUpdate(component) {
+  queueUpdate(component, key, value, oldVal) {
     this._updateQueue.push(component);
     if (!this._isUpdating) {
       this._isUpdating = true;
@@ -802,7 +806,10 @@ export const XRender = {
         this._isUpdating = false;
         const queue = this._updateQueue.slice(0);
         this._updateQueue.length = 0;
-        queue.forEach((c) => c.update());
+        queue.forEach((c) => {
+          c.update();
+          c.triggerWatch(key, value, oldVal);
+        });
       });
     }
   },
@@ -835,7 +842,10 @@ export const XRender = {
     return {
       $mount(selector) {
         that.query(selector).append(that.App);
-        that.$router && that.$router.render();
+        that.nextTick(() => {
+          that.$router && that.$router.render();
+        });
+        //that.$router && that.$router.render();
         return that;
       },
     };
@@ -978,3 +988,4 @@ export const XRender = {
   },
 };
 window.$ = XRender;
+export default XRender;

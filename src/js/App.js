@@ -12,9 +12,13 @@ const App = $.component("App", {
     return createElem(
       "div",
       { class: "page" },
-      createElem(myHeader, {
-        "slot:text": createElem("h2", {}, "Hello World"),
-      }),
+      $.lazyLoad(
+        createElem(myHeader, {
+          "slot:text": createElem("h2", {}, "Hello World"),
+        }),
+        createElem("p", {}, "loading...")
+      ),
+      createElem("router-view"),
       createElem(
         "transition",
         { name: "scale" },
@@ -24,8 +28,7 @@ const App = $.component("App", {
           "$t('content')",
           createElem("h1", {}, "Hello World"),
           $.lazyLoad(inputPanel, createElem("p", {}, "loading...")),
-          createElem("p", {}, "{{username}}"),
-          createElem("router-view")
+          createElem("p", {}, "{{username}}")
         )
       ),
       createElem(myFooter, {
