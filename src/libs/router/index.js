@@ -12,7 +12,19 @@ export class Router {
     this.afterEachHooks = []; // 存储 afterEach 钩子
     this.params = {}; // 新增：存储路径参数
     this.query = {}; // 新增：存储查询参数
+    this.transition = null; // 新增：过渡动画
+    this.meta = {}; // 新增：存储元信息
+    this.children = []; // 新增：存储子路由
+    this.errorHandler = null; // 新增：错误处理函数
     this.init();
+  }
+  // 新增：设置错误处理函数
+  setErrorHandler(handler) {
+    this.errorHandler = handler;
+  }
+  // 新增：设置过渡动画
+  setTransition(transition) {
+    this.transition = transition;
   }
   // 新增：解析路径参数
   parseParams(path, routePath) {
@@ -28,6 +40,10 @@ export class Router {
     });
 
     return params;
+  }
+  // 新增：添加子路由
+  addChildRouter(childRouter) {
+    this.children.push(childRouter);
   }
 
   // 新增：解析查询参数
@@ -83,6 +99,7 @@ export class Router {
     if (route) {
       this.params = this.parseParams(path, route.path); // 解析路径参数
       this.query = this.parseQuery(fullHash); // 解析查询参数
+      this.meta = route.meta || {}; // 新增：存储元信息
       // 执行 beforeEnter 钩子
       if (route.beforeEnter) {
         route.beforeEnter(route, () => {
@@ -99,7 +116,11 @@ export class Router {
       }
       this.runAfterEachHooks(route);
     } else {
-      console.error(`Route not found: ${hash}`);
+      if (this.errorHandler) {
+        this.errorHandler(path);
+      } else {
+        console.error(`Route not found: ${path}`);
+      }
     }
   }
 
@@ -128,7 +149,17 @@ export class Router {
 
     runHook();
   }
-
+  // 新增：懒加载组件
+  lazyLoad(loader) {
+    return {
+      render: () => {
+        loader().then((component) => {
+          this.currentRoute.component = component;
+          this.render();
+        });
+      },
+    };
+  }
   // 渲染当前路由对应的组件
   render() {
     if (this.currentRoute) {
@@ -143,6 +174,13 @@ export class Router {
           ...component.options,
         }).init();
         routerView.appendChild(component.el);
+        if (this.transition) {
+          this.transition.afterEnter(routerView);
+        }
+        // 渲染子路由
+        this.children.forEach((childRouter) => {
+          childRouter.render();
+        });
       } /*  else {
         console.error("router-view not found in rootElement");
       } */

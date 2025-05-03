@@ -90,6 +90,12 @@ const elemAttrs = function (elem, attributes) {
     elem.appendChild(el);
   };
   Object.entries(attributes).forEach(([key, value]) => {
+    // 处理自定义指令
+    if (key.startsWith("v-") && XRender.directives[key.slice(2)]) {
+      const directive = XRender.directives[key.slice(2)];
+      directive.bind?.(elem, value, that);
+      return;
+    }
     if (key === "text") {
       if (value.includes("{{")) {
         value = value.replace(/\{\{(.+?)\}\}/g, (_, key) => {
@@ -279,6 +285,7 @@ const createElem = function (tagName, attributes = {}, ...children) {
         value = value.replace(/\{\{(.+?)\}\}/g, (_, key) => {
           return that.data[key.trim()] ?? "";
         });
+        attributes[key] = value;
       }
       if (key.startsWith(":") || key.startsWith("v-bind:")) {
         attributes[key.replace(/^(v-bind:)?:/, "")] = that.data[value];
@@ -418,7 +425,17 @@ export class Component {
     };
     // 新增性能优化相关属性
     this._debounceUpdate = null; // 防抖更新
-    this._throttleUpdate = null; // 节流更新
+    this._throttleUpdate = function () {
+      let timeoutId = null;
+      return function () {
+        if (!timeoutId) {
+          timeoutId = setTimeout(() => {
+            this.update();
+            timeoutId = null;
+          }, 100); // 100ms 的节流间隔
+        }
+      };
+    }; // 节流更新
     this._updateQueue = new Set(); // 批量更新队列
     this._isUpdating = false; // 是否正在更新
 
@@ -429,6 +446,8 @@ export class Component {
     };
     // 新增 Mixins 支持
     this.mixins = options?.mixins || [];
+    // 新增错误边界
+    this.errorCaptured = options.errorCaptured || null;
 
     return this;
   }
@@ -452,7 +471,16 @@ export class Component {
     this.options?.mounted?.call(this);
     return this;
   }
-
+  // 新增：捕获错误
+  captureError(error) {
+    if (this.errorCaptured) {
+      this.errorCaptured(error);
+    } else if (this.parent) {
+      this.parent.captureError(error);
+    } else {
+      console.error("Uncaught error:", error);
+    }
+  }
   getFromCache(key) {
     return this.parent?._cache?.[key];
   }
@@ -657,6 +685,10 @@ export class Component {
         const newEl = that.render.call(that, function () {
           return createElem.call(that, ...arguments);
         });
+        // 调用指令的 update 钩子
+        Object.entries(XRender.directives).forEach(([name, directive]) => {
+          directive.update?.(newEl, that);
+        });
         that.el.parentNode?.replaceChild(newEl, that.el);
         that.el = newEl;
         //that.$router && that.$router.render();
@@ -682,6 +714,11 @@ export class Component {
           });
           this._eventHandlers = null;
         }
+
+        // 调用指令的 unbind 钩子
+        Object.entries(XRender.directives).forEach(([name, directive]) => {
+          directive.unbind?.(this.el, this);
+        });
 
         // 清理 DOM 元素
         if (this.el && this.el.parentNode) {
@@ -720,7 +757,10 @@ export class Component {
         });
         this._eventHandlers = null;
       }
-
+      // 调用指令的 unbind 钩子
+      Object.entries(XRender.directives).forEach(([name, directive]) => {
+        directive.unbind?.(this.el, this);
+      });
       // 清理 DOM 元素
       if (this.el && this.el.parentNode) {
         this.el.parentNode.removeChild(this.el);
@@ -777,6 +817,25 @@ export const XRender = {
   $router: null,
   $i18n: null,
   App: null,
+  // 新增插件生命周期钩子
+  _pluginHooks: {
+    beforeCreate: [],
+    created: [],
+    beforeMount: [],
+    mounted: [],
+    beforeUpdate: [],
+    updated: [],
+    beforeUnmount: [],
+    unmounted: [],
+  },
+  on(hook, callback) {
+    this._pluginHooks[hook].push(callback);
+  },
+  // 新增全局混入功能
+  mixins: [],
+  mixin(mixin) {
+    this.mixins.push(mixin);
+  },
   // 新增错误处理
   _errorHandler: null,
   config: {
@@ -812,6 +871,12 @@ export const XRender = {
         });
       });
     }
+  },
+  // 新增自定义指令功能
+  directives: {},
+  directive(name, options) {
+    this.directives[name] = options;
+    return this;
   },
   createApp(options) {
     const that = this;
@@ -985,6 +1050,22 @@ export const XRender = {
       this.$i18n = null;
       this.App = null;
     },
+  },
+  // 新增性能监控
+  _performance: {
+    startTime: null,
+    endTime: null,
+  },
+  startPerformanceMonitor() {
+    this._performance.startTime = performance.now();
+  },
+  endPerformanceMonitor() {
+    this._performance.endTime = performance.now();
+    console.log(
+      `Performance: ${
+        this._performance.endTime - this._performance.startTime
+      }ms`
+    );
   },
 };
 window.$ = XRender;

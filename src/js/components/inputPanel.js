@@ -1,3 +1,16 @@
+// 注册自定义指令
+$.directive("focus", {
+  bind(el, value, vm) {
+    el.focus();
+  },
+  update(el, value, vm) {
+    if (value) el.focus();
+  },
+  unbind(el, vm) {
+    el.blur();
+  },
+});
+
 const inputPanel = $.component("InputPanel", {
   render(createElem) {
     return createElem(
@@ -7,6 +20,7 @@ const inputPanel = $.component("InputPanel", {
         type: "text",
         "@change": "updateUsername",
         ":value": "username",
+        "v-focus": true,
       })
     );
   },
