@@ -23,9 +23,9 @@ import 'xrender';
 
 const App = $.component('App', {    
   render(createElem) {
-    return createElem('div', {}, 'Hello, XRender!'，createElem(function(){
+    return createElem('div', {class:'page'}, 'Hello, XRender!', createElem(function(){
         return `<button type="button" @click="buttonClickHandle">{{msg}}</button>`
-    });
+    }));
   },
   data(){
     return{
