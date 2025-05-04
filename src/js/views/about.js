@@ -8,8 +8,25 @@ const About = $.component("about", {
       "div",
       {},
       "About",
-      createElem("router-link", { to: "/", text: "Go Home" })
+      createElem("router-link", { to: "/", text: "Go Home" }),
+      createElem(function () {
+        return `<p :class="pClass">
+          ${this.data.msg}
+          <button type="button" @click="buttonClickHandle">{{msg}}</button>
+        </p>`;
+      })
     );
+  },
+  data() {
+    return {
+      msg: "About Page",
+      pClass: "p_class",
+    };
+  },
+  methods: {
+    buttonClickHandle() {
+      console.log("About Page Clicked");
+    },
   },
 });
 

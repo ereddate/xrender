@@ -1,4 +1,4 @@
-const doc = document;
+const doc = window.document;
 const createTextNode = function (text) {
   const textNode = doc.createTextNode(text);
   return textNode;
@@ -22,6 +22,17 @@ const on = function (elem, eventName, handler) {
     elem._eventDelegation[eventName] = [];
   }
   elem._eventDelegation[eventName].push(handler);
+};
+const isExpression = function (str) {
+  // 判断是否是表达式
+  return (
+    typeof str === "string" &&
+    (str.includes("{{") || str.includes("$t(") || str.includes("("))
+  );
+};
+const isComponent = function (component) {
+  const isComponent = component instanceof Component;
+  return isComponent;
 };
 const elemChildren = function (elem, children) {
   const that = this;
@@ -186,10 +197,15 @@ const elemAttrs = function (elem, attributes) {
       } else if (propName === "class") {
         // 支持对象和数组语法：:class="{active: isActive}" 或 :class="['class1', 'class2']"
         try {
-          const classValue = new Function(
-            "data",
-            `with(data){return ${propValue}}`
-          )(that.data);
+          let classValue;
+          if (isExpression(propValue)) {
+            classValue = new Function(
+              "data",
+              `with(data){return ${propValue}}`
+            )(that.data);
+          } else if (typeof propValue === "string") {
+            classValue = propValue;
+          }
 
           // 处理各种类型返回值
           if (Array.isArray(classValue)) {
@@ -223,8 +239,50 @@ const elemAttrs = function (elem, attributes) {
     }
   });
 };
+const createElementFromString = function (htmlString) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(htmlString, "text/html");
+  const element = doc.body.firstChild;
+
+  const parseElement = (el) => {
+    const tagName = el.tagName.toLowerCase();
+    const attributes = {};
+    const children = [];
+
+    // 解析属性
+    Array.from(el.attributes).forEach((attr) => {
+      attributes[attr.name] = attr.value;
+    });
+
+    // 解析子节点
+    Array.from(el.childNodes).forEach((child) => {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        children.push(parseElement(child));
+      } else if (
+        child.nodeType === Node.TEXT_NODE &&
+        child.textContent.trim()
+      ) {
+        children.push("'" + child.textContent.trim() + "'");
+      }
+    });
+
+    return `createElem.call(this, "${tagName}", ${JSON.stringify(
+      attributes
+    )}, ${children.join(", ")})`;
+  };
+
+  return parseElement(element);
+};
 const createElem = function (tagName, attributes = {}, ...children) {
   const that = this;
+  if (typeof tagName === "function") {
+    let returnElem = createElementFromString(tagName.call(that).trim());
+    returnElem = new Function(
+      "createElem",
+      `try{const el = ${returnElem};return el;}catch(e){console.error(e);return null;}`
+    ).call(that, createElem);
+    return returnElem;
+  }
   // 新增全局组件解析逻辑
   if (typeof tagName === "string") {
     const componentName = tagName.toLowerCase();
@@ -354,12 +412,6 @@ class VNode {
     this.el = null;
   }
 }
-
-const isComponent = function (component) {
-  const isComponent = component instanceof Component;
-  return isComponent;
-};
-
 export class Component {
   constructor(name, options, parent = null) {
     this.name = name;
@@ -380,11 +432,7 @@ export class Component {
     this.el = null;
     this.isMounted = false;
     this.computed = (options && options.computed) || {};
-    this.beforeUpdate = (options && options.beforeUpdate) || (() => {});
-    this.updated = (options && options.updated) || (() => {});
     this.vnode = null; // 新增虚拟节点属性
-    this.beforeMount = (options && options.beforeMount) || (() => {});
-    this.beforeUnmount = (options && options.beforeUnmount) || (() => {});
     // 新增 SSR 相关属性
     this.isServer = typeof window === "undefined";
     this.ssrContext = options?.ssrContext || null;
@@ -392,7 +440,16 @@ export class Component {
     this._cache = null;
     this._cacheKey = null;
     this.$i18n = parent?.$i18n || XRender.$i18n;
-
+    // 新增生命周期钩子
+    this.beforeCreate = options?.beforeCreate || (() => {});
+    this.created = options?.created || (() => {});
+    this.beforeMount = (options && options.beforeMount) || (() => {});
+    this.mounted = options?.mounted || (() => {});
+    this.beforeUpdate = (options && options.beforeUpdate) || (() => {});
+    this.updated = (options && options.updated) || (() => {});
+    this.beforeDestroy = options?.beforeDestroy || (() => {});
+    this.destroyed = options?.destroyed || (() => {});
+    this.beforeUnmount = (options && options.beforeUnmount) || (() => {});
     // 共享$实例的属性和方法
     if (parent) {
       Object.keys(parent).forEach((key) => {
@@ -465,11 +522,17 @@ export class Component {
     // 初始化观察者
     this.initWatcher();
     // 生命周期钩子调用
-    this.options?.created?.call(this);
+    this.beforeCreate?.call(this);
+    this.created?.call(this);
     this.beforeMount?.call(this);
     this.setup();
-    this.options?.mounted?.call(this);
+    this.mounted?.call(this);
     return this;
+  }
+  destroy() {
+    this.beforeDestroy?.call(this);
+    this.unmount();
+    this.destroyed?.call(this); // 在销毁之后调用
   }
   // 新增：捕获错误
   captureError(error) {
@@ -670,49 +733,54 @@ export class Component {
   // 新增更新机制
   update() {
     const that = this;
-    if (this.el.getAttribute("data-static") === "true") {
-      return;
-    }
-    if (this._cacheKey) {
-      this.cache(this._cacheKey);
-    }
-    if (this._debounceUpdate) {
-      clearTimeout(this._debounceUpdate);
-    }
-    this._debounceUpdate = setTimeout(() => {
-      that.beforeUpdate?.call(that);
-      if (that.isMounted) {
-        const newEl = that.render.call(that, function () {
-          return createElem.call(that, ...arguments);
-        });
-        // 调用指令的 update 钩子
-        Object.entries(XRender.directives).forEach(([name, directive]) => {
-          directive.update?.(newEl, that);
-        });
-        that.el.parentNode?.replaceChild(newEl, that.el);
-        that.el = newEl;
-        //that.$router && that.$router.render();
+    try {
+      if (this.el.getAttribute("data-static") === "true") {
+        return;
       }
-      XRender.nextTick(() => {
-        that.updated?.call(that);
-      });
-    }, 16);
+      if (this._cacheKey) {
+        this.cache(this._cacheKey);
+      }
+      if (this._debounceUpdate) {
+        clearTimeout(this._debounceUpdate);
+      }
+      this._debounceUpdate = setTimeout(() => {
+        that.beforeUpdate?.call(that);
+        if (that.isMounted) {
+          const newEl = that.render.call(that, function () {
+            return createElem.call(that, ...arguments);
+          });
+          // 调用指令的 update 钩子
+          Object.entries(XRender.directives).forEach(([name, directive]) => {
+            directive.update?.(newEl, that);
+          });
+          that.el.parentNode?.replaceChild(newEl, that.el);
+          that.el = newEl;
+          //that.$router && that.$router.render();
+        }
+        XRender.nextTick(() => {
+          that.updated?.call(that);
+        });
+      }, 16);
+    } catch (e) {
+      this.errorCaptured?.(e);
+    }
   }
 
   unmount() {
+    const that = this;
     if (this.transition) {
       // 应用离开过渡
       this.applyTransition(this.el, "leave");
       setTimeout(() => {
         // 调用 beforeUnmount 钩子
-        this.beforeUnmount?.call(this);
+        that.beforeUnmount?.call(that);
 
         // 清理事件监听器
-        if (this._eventHandlers) {
-          this._eventHandlers.forEach(({ elem, eventName, handler }) => {
+        if (that._eventHandlers) {
+          that._eventHandlers.forEach(({ elem, eventName, handler }) => {
             elem.removeEventListener(eventName, handler);
           });
-          this._eventHandlers = null;
+          that._eventHandlers = null;
         }
 
         // 调用指令的 unbind 钩子
@@ -721,30 +789,30 @@ export class Component {
         });
 
         // 清理 DOM 元素
-        if (this.el && this.el.parentNode) {
-          this.el.parentNode.removeChild(this.el);
+        if (that.el && that.el.parentNode) {
+          that.el.parentNode.removeChild(that.el);
         }
 
         // 清理数据观察
-        this.data = null;
+        that.data = null;
 
         // 清理计算属性
-        this.computed = null;
+        that.computed = null;
 
         // 清理方法
-        this.methods = null;
+        that.methods = null;
 
         // 清理 watch
-        this.watch = null;
+        that.watch = null;
 
         // 清理 slots
-        this.$slots = null;
+        that.$slots = null;
 
         // 标记为未挂载
-        this.isMounted = false;
+        that.isMounted = false;
 
         // 清理父组件引用
-        this.parent = null;
+        that.parent = null;
       }, this.transition.duration || 300);
     } else {
       // 调用 beforeUnmount 钩子
@@ -808,8 +876,7 @@ export class Component {
     this.isMounted = true;
   }
 }
-
-export const XRender = {
+const XRender = {
   components: {},
   el: null,
   _installedPlugins: [],
