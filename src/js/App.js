@@ -15,6 +15,9 @@ const App = $.component("App", {
       $.lazyLoad(
         createElem(myHeader, {
           "slot:text": createElem("h2", {}, "Hello World"),
+          slot: (data) => {
+            return createElem("p", {}, `Text: ${data.text}`);
+          },
         }),
         createElem("p", {}, "loading...")
       ),

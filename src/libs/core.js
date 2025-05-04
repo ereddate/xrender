@@ -36,11 +36,12 @@ const isComponent = function (component) {
 };
 const elemChildren = function (elem, children) {
   const that = this;
+  const fragment = doc.createDocumentFragment(); // 创建 DocumentFragment
   const append = function (child) {
     if (Array.isArray(child)) {
       child.forEach(append);
       return;
-    } else elem.appendChild(child);
+    } else fragment.appendChild(child);
   };
   children.length > 0 &&
     children.forEach((child) => {
@@ -75,11 +76,12 @@ const elemChildren = function (elem, children) {
         }
       } else if (child && child.tagName && child.tagName === "TEMPLATE") {
         const templateChildren = Array.from(child.childNodes);
-        elemChildren.call(that, elem, templateChildren);
+        elemChildren.call(that, fragment, templateChildren);
       } else {
         child && append(child);
       }
     });
+  elem.appendChild(fragment); // 将 DocumentFragment 追加到元素中
 };
 const findCommon = function (target, slotName) {
   const common = [];
@@ -351,7 +353,7 @@ const createElem = function (tagName, attributes = {}, ...children) {
       } else if (key.startsWith("slot")) {
         const slotName = key.replace(/slot\:*/, "") || "default";
         slots[slotName] = value;
-      } else if (value.startsWith("$t(")) {
+      } else if (typeof value === "string" && value.startsWith("$t(")) {
         const skey = value.slice(3, -1).replace(/'/g, "");
         value = that.$i18n?.t(skey) || skey;
         attributes[key] = value;
@@ -382,7 +384,21 @@ const createElem = function (tagName, attributes = {}, ...children) {
     }
     Object.entries(slots).forEach(([slotName, slotContent]) => {
       findCommon(component.el, slotName).forEach((node) => {
-        node.parentNode?.replaceChild(slotContent, node);
+        if (typeof slotContent === "function") {
+          // 作用域插槽：传递数据给插槽内容
+          const slotData = component.data;
+          const renderedContent = slotContent(slotData);
+          node.parentNode?.replaceChild(renderedContent, node);
+        } else if (Array.isArray(slotContent)) {
+          // 动态插槽：支持数组形式
+          const fragment = doc.createDocumentFragment();
+          slotContent.forEach((content) => {
+            fragment.appendChild(content);
+          });
+          node.parentNode?.replaceChild(fragment, node);
+        } else {
+          node.parentNode?.replaceChild(slotContent, node);
+        }
       });
     });
     elemChildren.call(that, component.el, children);
@@ -412,6 +428,7 @@ class VNode {
     this.el = null;
   }
 }
+
 export class Component {
   constructor(name, options, parent = null) {
     this.name = name;
@@ -493,7 +510,7 @@ export class Component {
         }
       };
     }; // 节流更新
-    this._updateQueue = new Set(); // 批量更新队列
+    this._updateQueue = []; // 批量更新队列
     this._isUpdating = false; // 是否正在更新
 
     // 增强错误处理
@@ -505,7 +522,6 @@ export class Component {
     this.mixins = options?.mixins || [];
     // 新增错误边界
     this.errorCaptured = options.errorCaptured || null;
-
     return this;
   }
 
@@ -528,6 +544,12 @@ export class Component {
     this.setup();
     this.mounted?.call(this);
     return this;
+  }
+
+  // 新增方法：清理上下文订阅
+  _cleanupContextSubscriptions() {
+    this._contextSubscriptions.forEach((unsubscribe) => unsubscribe());
+    this._contextSubscriptions.clear();
   }
   destroy() {
     this.beforeDestroy?.call(this);
@@ -602,15 +624,25 @@ export class Component {
   }
 
   // 新增批量更新方法
-  batchUpdate() {
-    if (this._isUpdating) return;
-    this._isUpdating = true;
-
-    requestAnimationFrame(() => {
-      this.update();
-      this._isUpdating = false;
-      this._updateQueue.clear();
-    });
+  batchUpdate(callback) {
+    this._updateQueue.push(callback);
+    if (!this._isUpdating) {
+      this._isUpdating = true;
+      requestAnimationFrame(() => {
+        const fragment = doc.createDocumentFragment(); // 创建 DocumentFragment
+        this._updateQueue.forEach((cb) => cb(fragment));
+        const isNodeInFragment = function (fragment, node) {
+          return Array.from(fragment.childNodes).some(
+            (child) => child === node || child.contains(node)
+          );
+        };
+        if (!isNodeInFragment(fragment, this.el)) {
+          this.el.appendChild(fragment); // 一次性插入所有更新
+        }
+        this._updateQueue = [];
+        this._isUpdating = false;
+      });
+    }
   }
 
   // 新增缓存方法
@@ -685,25 +717,58 @@ export class Component {
     const vm = this;
     const handler = {
       get(target, key) {
-        const value = target[key];
+        const value = Reflect.get(target, key);
         // 深度监听对象
         if (typeof value === "object" && value !== null) {
-          return new Proxy(value, handler);
+          return vm.observe(value);
         }
         return value;
       },
       set(target, key, value) {
-        const oldVal = target[key];
-        target[key] = value;
+        const oldVal = Reflect.get(target, key);
+        const result = Reflect.set(target, key, value);
         // 触发更新
         if (oldVal !== value) {
           XRender.queueUpdate(vm, key, value, oldVal);
           /* vm.update();
           vm.triggerWatch(key, value, oldVal); */
         }
-        return true;
+        return result;
+      },
+      deleteProperty(target, key) {
+        const oldVal = Reflect.get(target, key);
+        const result = Reflect.deleteProperty(target, key);
+        // 如果删除成功，触发更新
+        if (result && oldVal !== undefined) {
+          vm.update();
+          vm.triggerWatch(key, undefined, oldVal);
+        }
+        return result;
       },
     };
+
+    // 如果是数组，重写数组方法
+    if (Array.isArray(data)) {
+      const arrayMethods = [
+        "push",
+        "pop",
+        "shift",
+        "unshift",
+        "splice",
+        "sort",
+        "reverse",
+      ];
+      arrayMethods.forEach((method) => {
+        const original = Array.prototype[method];
+        data[method] = function (...args) {
+          const oldVal = [...this];
+          const result = original.apply(this, args);
+          vm.update();
+          vm.triggerWatch(method, this, oldVal);
+          return result;
+        };
+      });
+    }
     return new Proxy(data || {}, handler);
   }
   // 新增事件机制
@@ -740,27 +805,24 @@ export class Component {
       if (this._cacheKey) {
         this.cache(this._cacheKey);
       }
-      if (this._debounceUpdate) {
-        clearTimeout(this._debounceUpdate);
-      }
-      this._debounceUpdate = setTimeout(() => {
+      this.batchUpdate((fragment) => {
         that.beforeUpdate?.call(that);
         if (that.isMounted) {
           const newEl = that.render.call(that, function () {
             return createElem.call(that, ...arguments);
           });
+          fragment.appendChild(newEl); // 将新节点添加到 DocumentFragment
           // 调用指令的 update 钩子
           Object.entries(XRender.directives).forEach(([name, directive]) => {
             directive.update?.(newEl, that);
           });
-          that.el.parentNode?.replaceChild(newEl, that.el);
+          that.el.parentNode?.replaceChild(fragment, that.el);
           that.el = newEl;
-          //that.$router && that.$router.render();
         }
         XRender.nextTick(() => {
           that.updated?.call(that);
         });
-      }, 16);
+      });
     } catch (e) {
       this.errorCaptured?.(e);
     }
@@ -813,6 +875,7 @@ export class Component {
 
         // 清理父组件引用
         that.parent = null;
+        this._cleanupContextSubscriptions(); // 清理上下文订阅
       }, this.transition.duration || 300);
     } else {
       // 调用 beforeUnmount 钩子
@@ -854,6 +917,7 @@ export class Component {
 
       // 清理父组件引用
       this.parent = null;
+      this._cleanupContextSubscriptions(); // 清理上下文订阅
     }
   }
   setup() {
@@ -876,6 +940,7 @@ export class Component {
     this.isMounted = true;
   }
 }
+
 const XRender = {
   components: {},
   el: null,
@@ -1135,5 +1200,6 @@ const XRender = {
     );
   },
 };
+
 window.$ = XRender;
 export default XRender;

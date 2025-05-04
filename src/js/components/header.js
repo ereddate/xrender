@@ -8,7 +8,7 @@ const myHeader = $.component("MyHeader", {
     return createElem(
       "header",
       { class: "header", "v-bind:text": "text", ":style": "styleObj" },
-      createElem("slot", { name: "text" }),
+      createElem("slot", { name: "text", data: this.data }),
       createElem(myBtn, { text: "$t('header')" }),
       createElem(myAddBtn, { text: "$t('header')" }),
       tipPanel,
@@ -16,7 +16,8 @@ const myHeader = $.component("MyHeader", {
       createElem("my-plugin-component", {
         message: "plugin! props",
         slot: createElem("p", {}, "$t('header')"),
-      })
+      }),
+      createElem("slot", { name: "default", data: this.data })
     );
   },
   data() {
