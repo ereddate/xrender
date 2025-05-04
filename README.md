@@ -21,10 +21,22 @@ XRender 是一个轻量级的前端框架，专注于组件化开发和数据驱
 ```javascript
 import 'xrender';
 
-const App = $.component('App', {
+const App = $.component('App', {    
   render(createElem) {
-    return createElem('div', {}, 'Hello, XRender!');
-  }
+    return createElem('div', {class:'page'}, 'Hello, XRender!', createElem(function(){
+        return `<button type="button" @click="buttonClickHandle">{{msg}}</button>`
+    }));
+  },
+  data(){
+    return{
+       msg:'Hello World!'
+    }
+  },
+  methods: {
+    buttonClickHandle() {
+      console.log("Button Clicked");
+    },
+  },
 });
 
 $.createApp({ App }).$mount('#app');
