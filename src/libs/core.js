@@ -1,3 +1,4 @@
+import customDirectives from "./customDirectives.js";
 const doc = window.document;
 const createTextNode = function (text) {
   const textNode = doc.createTextNode(text);
@@ -121,8 +122,7 @@ const elemAttrs = function (elem, attributes) {
     // 处理自定义指令
     if (key.startsWith("v-") && XRender.directives[key.slice(2)]) {
       const directive = XRender.directives[key.slice(2)];
-      directive.bind?.(elem, value, that);
-      return;
+      directive.bind?.(elem, value, that); // 确保 that 是正确的 vm 实例
     }
     if (key === "text") {
       if (value.includes("{{")) {
@@ -847,7 +847,17 @@ export class Component {
           fragment.appendChild(newEl); // 将新节点添加到 DocumentFragment
           // 调用指令的 update 钩子
           Object.entries(XRender.directives).forEach(([name, directive]) => {
-            directive.update?.(newEl, that);
+            const attributeName = `v-${name}`;
+            const attributeValue = newEl.getAttribute(attributeName);
+            if (newEl && attributeValue !== null) {
+              const bindingValue = that.data[attributeValue] ?? attributeValue;
+              directive.update?.call(
+                that,
+                newEl,
+                { value: bindingValue },
+                that
+              );
+            }
           });
           that.el.parentNode?.replaceChild(fragment, that.el);
           that.el = newEl;
@@ -1215,6 +1225,19 @@ const XRender = {
       this.$i18n = null;
       this.App = null;
     },
+    mount(Component, options = {}) {
+      const instance = new Component("TestComponent", options, XRender).init();
+      const div = document.createElement("div");
+      div.appendChild(instance.el);
+      return {
+        vm: instance,
+        element: div,
+      };
+    },
+    triggerEvent(el, eventType) {
+      const event = new Event(eventType);
+      el.dispatchEvent(event);
+    },
   },
   // 新增性能监控
   _performance: {
@@ -1233,6 +1256,11 @@ const XRender = {
     );
   },
 };
+
+// 注册自定义指令
+Object.entries(customDirectives).forEach(([name, directive]) => {
+  XRender.directive(name, directive);
+});
 
 window.$ = XRender;
 export default XRender;
