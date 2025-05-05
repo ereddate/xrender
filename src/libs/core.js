@@ -7,13 +7,17 @@ const createElement = function (tagName) {
   const elem = doc.createElement(tagName);
   return elem;
 };
-const on = function (elem, eventName, handler) {
+const on = function (elem, eventName, handler, namespace) {
   if (!elem._eventDelegation) {
     elem._eventDelegation = {};
     elem.addEventListener(eventName, function (e) {
       const handlers = elem._eventDelegation[eventName];
       if (handlers) {
-        handlers.forEach((h) => h(e));
+        handlers.forEach((h) => {
+          if (!namespace || h.namespace === namespace) {
+            h.handler(e);
+          }
+        });
       }
     });
   }
@@ -21,7 +25,18 @@ const on = function (elem, eventName, handler) {
   if (!elem._eventDelegation[eventName]) {
     elem._eventDelegation[eventName] = [];
   }
-  elem._eventDelegation[eventName].push(handler);
+  elem._eventDelegation[eventName].push({ handler, namespace });
+};
+const off = function (elem, eventName, namespace) {
+  if (elem._eventDelegation && elem._eventDelegation[eventName]) {
+    if (namespace) {
+      elem._eventDelegation[eventName] = elem._eventDelegation[
+        eventName
+      ].filter((h) => h.namespace !== namespace);
+    } else {
+      delete elem._eventDelegation[eventName];
+    }
+  }
 };
 const isExpression = function (str) {
   // 判断是否是表达式
@@ -647,14 +662,18 @@ export class Component {
 
   // 新增缓存方法
   cache() {
-    this._cache = this.el.cloneNode(true);
+    const cacheExpiration = 60 * 1000; // 缓存有效期 60 秒
+    this._cache = {
+      node: this.el.cloneNode(true),
+      timestamp: Date.now(),
+    };
     this._cacheKey = this.vnode.key;
   }
 
   restoreFromCache() {
-    if (this._cache) {
-      this.el.parentNode.replaceChild(this._cache, this.el);
-      this.el = this._cache;
+    if (this._cache && Date.now() - this._cache.timestamp < 60 * 1000) {
+      this.el.parentNode.replaceChild(this._cache.node, this.el);
+      this.el = this._cache.node;
       this._cache = null;
     }
   }
@@ -714,12 +733,19 @@ export class Component {
 
   // 数据响应式实现
   observe(data) {
+    if (data && data.__observed__) {
+      return data;
+    }
     const vm = this;
     const handler = {
       get(target, key) {
         const value = Reflect.get(target, key);
         // 深度监听对象
-        if (typeof value === "object" && value !== null) {
+        if (
+          typeof value === "object" &&
+          value !== null &&
+          !value.__observed__
+        ) {
           return vm.observe(value);
         }
         return value;
@@ -769,7 +795,14 @@ export class Component {
         };
       });
     }
-    return new Proxy(data || {}, handler);
+    const proxy = new Proxy(data || {}, handler);
+    Object.defineProperty(proxy, "__observed__", {
+      value: true,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    });
+    return proxy;
   }
   // 新增事件机制
   $emit(eventName, ...args) {
@@ -986,17 +1019,17 @@ const XRender = {
   afterEach(guard) {
     this._routerGuards.afterEach.push(guard);
   },
-  _updateQueue: [],
+  _updateQueue: new Set(),
   _isUpdating: false,
 
   queueUpdate(component, key, value, oldVal) {
-    this._updateQueue.push(component);
+    this._updateQueue.add(component);
     if (!this._isUpdating) {
       this._isUpdating = true;
       Promise.resolve().then(() => {
         this._isUpdating = false;
-        const queue = this._updateQueue.slice(0);
-        this._updateQueue.length = 0;
+        const queue = Array.from(this._updateQueue);
+        this._updateQueue.clear();
         queue.forEach((c) => {
           c.update();
           c.triggerWatch(key, value, oldVal);
