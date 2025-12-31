@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import viteCompression from "vite-plugin-compression";
 import fs from 'fs';
 import path from 'path';
+import babel from '@rollup/plugin-babel';
 
 const getVersion = () => {
   try {
@@ -42,6 +43,13 @@ export default defineConfig({
           intl: "Intl",
         },
       },
+      plugins: [
+        babel({
+          babelHelpers: 'bundled',
+          exclude: 'node_modules/**',
+          extensions: ['.js', '.jsx']
+        })
+      ]
     },
   },
   plugins: [

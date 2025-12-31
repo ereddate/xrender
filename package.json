@@ -3,6 +3,12 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead",
+    "IE 11"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -26,6 +32,11 @@
     "version:bump-all": "node scripts/version.js bump-all"
   },
   "devDependencies": {
+    "@babel/core": "^7.28.5",
+    "@babel/plugin-transform-runtime": "^7.28.5",
+    "@babel/preset-env": "^7.28.5",
+    "@babel/runtime-corejs3": "^7.28.4",
+    "@rollup/plugin-babel": "^6.1.0",
     "@vitest/ui": "^4.0.16",
     "intl-messageformat": "^10.3.5",
     "jsdom": "^27.4.0",
@@ -34,5 +45,8 @@
     "vite": "^6.3.1",
     "vite-plugin-compression": "^0.5.1",
     "vitest": "^4.0.16"
+  },
+  "dependencies": {
+    "core-js": "^3.47.0"
   }
 }

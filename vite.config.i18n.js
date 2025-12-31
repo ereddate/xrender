@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import fs from 'fs';
 import path from 'path';
+import babel from '@rollup/plugin-babel';
 
 const getVersion = () => {
   try {
@@ -31,7 +32,14 @@ export default defineConfig({
           'intl-messageformat': 'IntlMessageFormat'
         }
       },
-      external: ['intl-messageformat']
+      external: ['intl-messageformat'],
+      plugins: [
+        babel({
+          babelHelpers: 'bundled',
+          exclude: 'node_modules/**',
+          extensions: ['.js', '.jsx']
+        })
+      ]
     },
     minify: 'terser',
     sourcemap: true
