@@ -6,13 +6,33 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "build:libs": "vite build --config vite.config.libs.js",
+    "build:fetch": "vite build --config vite.config.fetch.js",
+    "build:router": "vite build --config vite.config.router.js",
+    "build:store": "vite build --config vite.config.store.js",
+    "build:i18n": "vite build --config vite.config.i18n.js",
+    "build:touchs": "vite build --config vite.config.touchs.js",
+    "build:all": "npm run build:libs && npm run build:fetch && npm run build:router && npm run build:store && npm run build:i18n && npm run build:touchs && node scripts/post-build.js latest",
+    "post-build:latest": "node scripts/post-build.js latest",
+    "post-build:clean": "node scripts/post-build.js clean",
+    "post-build:list": "node scripts/post-build.js list",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "version:get": "node scripts/version.js get",
+    "version:set": "node scripts/version.js set",
+    "version:bump": "node scripts/version.js bump",
+    "version:bump-all": "node scripts/version.js bump-all"
   },
   "devDependencies": {
+    "@vitest/ui": "^4.0.16",
+    "intl-messageformat": "^10.3.5",
+    "jsdom": "^27.4.0",
     "sass": "^1.87.0",
     "terser": "^5.39.0",
     "vite": "^6.3.1",
-    "intl-messageformat": "^10.3.5",
-    "vite-plugin-compression": "^0.5.1"
+    "vite-plugin-compression": "^0.5.1",
+    "vitest": "^4.0.16"
   }
 }

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XRender 基础示例</title>
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .counter {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f0f0f0;
+            border-radius: 8px;
+        }
+        .counter h2 {
+            margin: 0 0 10px 0;
+        }
+        .counter .value {
+            font-size: 48px;
+            font-weight: bold;
+            color: #4CAF50;
+            margin: 20px 0;
+        }
+        .buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:active {
+            background: #3e8e41;
+        }
+        .user-info {
+            margin: 20px 0;
+            padding: 20px;
+            background: #e3f2fd;
+            border-radius: 8px;
+        }
+        .user-info h2 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+        }
+        .user-info p {
+            margin: 5px 0;
+        }
+        .list-demo {
+            margin: 20px 0;
+            padding: 20px;
+            background: #fff3e0;
+            border-radius: 8px;
+        }
+        .list-demo h2 {
+            margin: 0 0 10px 0;
+            color: #f57c00;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            padding: 8px 12px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>XRender 框架示例</h1>
+        
+        <!-- 计数器示例 -->
+        <div id="counter-app"></div>
+        
+        <!-- 用户信息示例 -->
+        <div id="user-app"></div>
+        
+        <!-- 列表示例 -->
+        <div id="list-app"></div>
+    </div>
+
+    <!-- 引入 XRender 框架 -->
+    <script type="module">
+        // 引入 XRender 框架
+        import XRender from '../src/libs/core.js';
+        
+        // 1. 计数器组件示例
+        const CounterComponent = XRender.component('Counter', {
+            data() {
+                return {
+                    count: 0
+                };
+            },
+            methods: {
+                increment() {
+                    this.data.count++;
+                },
+                decrement() {
+                    this.data.count--;
+                },
+                reset() {
+                    this.data.count = 0;
+                }
+            },
+            render(createElem) {
+                return createElem('div', { class: 'counter' },
+                    createElem('h2', {}, '计数器示例'),
+                    createElem('div', { class: 'value' }, this.data.count),
+                    createElem('div', { class: 'buttons' },
+                        createElem('button', { '@click': 'increment' }, '增加'),
+                        createElem('button', { '@click': 'decrement' }, '减少'),
+                        createElem('button', { '@click': 'reset' }, '重置')
+                    )
+                );
+            }
+        });
+        
+        // 2. 用户信息组件示例
+        const UserComponent = XRender.component('UserInfo', {
+            data() {
+                return {
+                    user: {
+                        name: '张三',
+                        age: 25,
+                        email: 'zhangsan@example.com',
+                        address: {
+                            city: '北京',
+                            district: '朝阳区',
+                            street: '建国路88号'
+                        }
+                    }
+                };
+            },
+            render(createElem) {
+                return createElem('div', { class: 'user-info' },
+                    createElem('h2', {}, '用户信息示例'),
+                    createElem('p', {}, `姓名: ${this.data.user.name}`),
+                    createElem('p', {}, `年龄: ${this.data.user.age}`),
+                    createElem('p', {}, `邮箱: ${this.data.user.email}`),
+                    createElem('p', {}, `地址: ${this.data.user.address.city} ${this.data.user.address.district} ${this.data.user.address.street}`)
+                );
+            }
+        });
+        
+        // 3. 列表组件示例
+        const ListComponent = XRender.component('List', {
+            data() {
+                return {
+                    items: ['项目1', '项目2', '项目3', '项目4', '项目5']
+                };
+            },
+            methods: {
+                addItem() {
+                    const newItem = `项目${this.data.items.length + 1}`;
+                    this.data.items.push(newItem);
+                },
+                removeItem(index) {
+                    this.data.items.splice(index, 1);
+                }
+            },
+            render(createElem) {
+                return createElem('div', { class: 'list-demo' },
+                    createElem('h2', {}, '列表示例'),
+                    createElem('button', { '@click': 'addItem' }, '添加项目'),
+                    createElem('ul', {},
+                        this.data.items.map((item, index) => 
+                            createElem('li', {},
+                                item,
+                                createElem('button', 
+                                    { 
+                                        '@click': () => this.removeItem(index),
+                                        style: 'margin-left: 10px; background: #f44336;' 
+                                    }, 
+                                    '删除'
+                                )
+                            )
+                        )
+                    )
+                );
+            }
+        });
+        
+        // 挂载组件
+        XRender.createApp({ App: CounterComponent }).$mount('#counter-app');
+        XRender.createApp({ App: UserComponent }).$mount('#user-app');
+        XRender.createApp({ App: ListComponent }).$mount('#list-app');
+        
+        console.log('XRender示例应用已加载');
+    </script>
+</body>
+</html>

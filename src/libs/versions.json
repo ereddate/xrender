@@ -1,0 +1,32 @@
+{
+  "xrender": {
+    "name": "XRender",
+    "version": "1.0.0",
+    "description": "XRender 核心框架"
+  },
+  "fetch": {
+    "name": "XRenderFetch",
+    "version": "1.0.0",
+    "description": "HTTP 请求库"
+  },
+  "router": {
+    "name": "XRenderRouter",
+    "version": "1.0.0",
+    "description": "路由管理"
+  },
+  "store": {
+    "name": "XRenderStore",
+    "version": "1.0.0",
+    "description": "状态管理"
+  },
+  "i18n": {
+    "name": "XRenderI18n",
+    "version": "1.0.0",
+    "description": "国际化"
+  },
+  "touchs": {
+    "name": "XRenderTouchs",
+    "version": "1.0.0",
+    "description": "移动端触摸事件"
+  }
+}

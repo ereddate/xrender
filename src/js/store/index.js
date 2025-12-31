@@ -1,5 +1,17 @@
 import { Store } from "../../libs/store";
-// 创建store实例
+
+const fakeLogin = async (credentials) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({
+        id: 1,
+        name: 'Test User',
+        email: credentials.email || 'test@example.com'
+      });
+    }, 1000);
+  });
+};
+
 const store = new Store({
   state: {
     count: 0,
@@ -15,7 +27,6 @@ const store = new Store({
   },
   actions: {
     async login({ commit }, credentials) {
-      // 模拟异步登录
       const user = await fakeLogin(credentials);
       commit("setUser", user);
     },

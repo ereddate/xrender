@@ -8,6 +8,9 @@ XRender 是一个轻量级的前端框架，专注于组件化开发和数据驱
 - **指令系统**：提供 `v-if`、`v-for`、`v-show` 等常用指令。
 - **生命周期钩子**：支持 `created`、`mounted`、`updated` 等生命周期钩子。
 - **插件系统**：支持通过插件扩展功能。
+- **模块化架构**：核心框架与功能模块完全解耦，支持按需引入。
+- **版本管理**：内置版本管理系统，支持语义化版本控制。
+- **独立打包**：每个模块可独立打包，支持版本化文件和目录。
 - **SSR 支持**：支持服务器端渲染（SSR）。
 - **路由支持**：支持路由管理和导航。
 - **状态管理**：支持状态管理。
@@ -18,6 +21,15 @@ XRender 是一个轻量级的前端框架，专注于组件化开发和数据驱
 - **移动端适配**：支持移动端适配和响应式设计。
 
 ## 快速开始
+
+### 安装
+
+```bash
+npm install xrender
+```
+
+### 基础使用
+
 ```javascript
 import 'xrender';
 
@@ -40,6 +52,126 @@ const App = $.component('App', {
 });
 
 $.createApp({ App }).$mount('#app');
+```
+
+### 模块化引入
+
+XRender 采用模块化架构，核心框架与功能模块完全解耦，支持按需引入：
+
+```javascript
+// 只引入核心框架（最轻量）
+import XRender from 'xrender/core/xrender-1.0.0.es.js';
+
+// 按需引入功能模块
+import { Router } from 'xrender/router/xrender-router-1.0.0.es.js';
+import { Store } from 'xrender/store/xrender-store-1.0.0.es.js';
+import { I18n } from 'xrender/i18n/xrender-i18n-1.0.0.es.js';
+import { Fetch } from 'xrender/fetch/xrender-fetch-1.0.0.es.js';
+import 'xrender/touchs/xrender-touchs-1.0.0.es.js';
+
+// 初始化功能模块
+const router = new Router(routes);
+const store = new Store({ state: {...} });
+const i18n = new I18n({ locale: 'zh-CN', messages: {...} });
+const fetch = new Fetch();
+
+// 创建应用
+XRender.createApp({ router, store, i18n, App }).$mount('#app');
+```
+
+### 使用 latest 链接（推荐）
+
+每个模块都会生成 `latest` 目录，指向当前最新版本：
+
+```javascript
+// 使用 latest 链接，自动获取最新版本
+import XRender from 'xrender/core/latest/xrender.es.js';
+import { Router } from 'xrender/router/latest/xrender-router.es.js';
+import { Store } from 'xrender/store/latest/xrender-store.es.js';
+```
+
+## 版本管理
+
+XRender 内置版本管理系统，支持语义化版本控制（Semantic Versioning）。
+
+### 查看版本
+
+```bash
+# 查看所有模块版本
+npm run version:get
+
+# 查看指定模块版本
+npm run version:get xrender
+```
+
+### 设置版本
+
+```bash
+# 设置指定模块版本
+npm run version:set xrender 1.2.0
+```
+
+### 升级版本
+
+```bash
+# 升级主版本（不兼容的 API 修改）
+npm run version:bump xrender major
+
+# 升级次版本（向下兼容的功能新增）
+npm run version:bump xrender minor
+
+# 升级修订号（向下兼容的问题修正）
+npm run version:bump xrender patch
+
+# 升级所有模块
+npm run version:bump-all minor
+```
+
+### 构建和发布
+
+```bash
+# 构建所有模块
+npm run build
+
+# 构建指定模块
+npm run build:libs
+npm run build:fetch
+npm run build:router
+npm run build:store
+npm run build:i18n
+npm run build:touchs
+
+# 更新 latest 链接
+npm run post-build:latest
+
+# 清理旧版本
+npm run post-build:clean
+
+# 列出所有版本
+npm run post-build:list
+```
+
+### 版本化目录结构
+
+构建后的文件会按版本号组织：
+
+```
+dist/libs/
+├── xrender/
+│   ├── 1.0.0/
+│   │   └── xrender-1.0.0.es.js
+│   ├── 1.1.0/
+│   │   └── xrender-1.1.0.es.js
+│   └── latest/
+│       └── xrender-1.1.0.es.js
+├── router/
+│   ├── 1.0.0/
+│   │   ├── xrender-router-1.0.0.es.js
+│   │   └── xrender-router-1.0.0.umd.js
+│   └── latest/
+│       ├── xrender-router-1.0.0.es.js
+│       └── xrender-router-1.0.0.umd.js
+└── ...
 ```
 ## 组件化开发
 XRender 支持创建和复用组件。以下是一个简单的组件示例：

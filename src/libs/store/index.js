@@ -1,27 +1,30 @@
 // 状态管理类
 export class Store {
+  static version = '1.0.0';
+  
   constructor(options) {
     this.name = "store";
-    this.modules = options.modules || {}; // 新增：模块化支持
-    this.plugins = options.plugins || []; // 新增：插件支持
+    this.modules = options.modules || {};
+    this.plugins = options.plugins || [];
     this.state = this.observe(this.initState(options.state || {}));
     this.mutations = options.mutations || {};
     this.actions = options.actions || {};
     this.getters = {};
-    this.subscribers = new Set(); // 新增：订阅者集合
-    // 新增：严格模式
+    this.subscribers = new Set();
+    this.strict = options.strict || false;
+    this.errorHandler = options.errorHandler || null;
+    
     if (this.strict) {
       this.enableStrictMode();
     }
-    // 新增：持久化存储
+    
     if (options.persist) {
-      this.persistState();
+      this.persistState(options.persist);
     }
-    // 初始化模块
+    
     this.initModules();
-    // 初始化插件
     this.initPlugins();
-    // 初始化getters
+    
     if (options.getters) {
       Object.keys(options.getters).forEach((key) => {
         Object.defineProperty(this.getters, key, {
@@ -30,30 +33,44 @@ export class Store {
       });
     }
   }
-  // 新增：订阅状态变化
+
   subscribe(callback) {
+    if (typeof callback !== 'function') {
+      console.error('Store.subscribe: callback must be a function');
+      return () => {};
+    }
     this.subscribers.add(callback);
     return () => this.subscribers.delete(callback);
   }
 
-  // 新增：通知订阅者
   notifySubscribers() {
-    this.subscribers.forEach((callback) => callback(this.state));
+    this.subscribers.forEach((callback) => {
+      try {
+        callback(this.state);
+      } catch (error) {
+        this.handleError(error);
+      }
+    });
   }
 
-  // 修改：在状态更新时通知订阅者
   commit(type, payload) {
-    if (this.mutations[type]) {
+    if (!this.mutations[type]) {
+      console.error(`[Store] Mutation "${type}" is not defined.`);
+      return;
+    }
+    try {
       this.mutations[type](this.state, payload);
-      this.notifySubscribers(); // 通知订阅者
+      this.notifySubscribers();
+    } catch (error) {
+      this.handleError(error);
     }
   }
-  // 新增：启用严格模式
+
   enableStrictMode() {
     const handler = {
       set: (target, key, value) => {
         if (this.strict && !this.mutations[key]) {
-          console.warn(`Mutation "${key}" is not defined.`);
+          console.warn(`[Store] Direct mutation of state "${key}" is not allowed in strict mode.`);
         }
         target[key] = value;
         return true;
@@ -61,30 +78,50 @@ export class Store {
     };
     this.state = new Proxy(this.state, handler);
   }
-  // 新增：持久化存储
-  persistState() {
-    const savedState = localStorage.getItem("storeState");
+
+  persistState(options = {}) {
+    const key = options.key || 'storeState';
+    const savedState = localStorage.getItem(key);
     if (savedState) {
-      this.state = this.observe(JSON.parse(savedState));
+      try {
+        this.state = this.observe(JSON.parse(savedState));
+      } catch (error) {
+        console.error('[Store] Failed to parse saved state:', error);
+      }
     }
 
     window.addEventListener("beforeunload", () => {
-      localStorage.setItem("storeState", JSON.stringify(this.state));
+      try {
+        localStorage.setItem(key, JSON.stringify(this.state));
+      } catch (error) {
+        console.error('[Store] Failed to persist state:', error);
+      }
     });
   }
-  // 新增：初始化插件
+
   initPlugins() {
     this.plugins.forEach((plugin) => {
-      plugin(this);
+      if (typeof plugin === 'function') {
+        try {
+          plugin(this);
+        } catch (error) {
+          this.handleError(error);
+        }
+      } else {
+        console.error('[Store] Plugin must be a function');
+      }
     });
   }
-  // 新增：初始化模块
+
   initModules() {
     Object.keys(this.modules).forEach((moduleName) => {
       const module = this.modules[moduleName];
+      if (!module) return;
+      
       this.state[moduleName] = this.observe(module.state || {});
       this.mutations = { ...this.mutations, ...module.mutations };
       this.actions = { ...this.actions, ...module.actions };
+      
       if (module.getters) {
         Object.keys(module.getters).forEach((key) => {
           Object.defineProperty(this.getters, key, {
@@ -94,25 +131,38 @@ export class Store {
       }
     });
   }
-  // 新增：初始化状态
+
   initState(state) {
     Object.keys(this.modules).forEach((moduleName) => {
       state[moduleName] = this.modules[moduleName].state || {};
     });
     return state;
   }
-  // 新增状态管理相关方法
+
   createStore(reducer, initialState) {
+    if (typeof reducer !== 'function') {
+      console.error('[Store] Reducer must be a function');
+      return null;
+    }
+    
     let state = initialState;
     const listeners = new Set();
 
     const store = {
       getState: () => state,
       dispatch: (action) => {
-        state = reducer(state, action);
-        listeners.forEach((listener) => listener());
+        try {
+          state = reducer(state, action);
+          listeners.forEach((listener) => listener());
+        } catch (error) {
+          this.handleError(error);
+        }
       },
       subscribe: (listener) => {
+        if (typeof listener !== 'function') {
+          console.error('[Store] Listener must be a function');
+          return () => {};
+        }
         listeners.add(listener);
         return () => listeners.delete(listener);
       },
@@ -134,14 +184,12 @@ export class Store {
     return new Proxy(state, handler);
   }
 
-  commit(type, payload) {
-    if (this.mutations[type]) {
-      this.mutations[type](this.state, payload);
-    }
-  }
-
   dispatch(type, payload) {
-    if (this.actions[type]) {
+    if (!this.actions[type]) {
+      console.error(`[Store] Action "${type}" is not defined.`);
+      return Promise.reject(new Error(`Action "${type}" is not defined.`));
+    }
+    try {
       return this.actions[type](
         {
           state: this.state,
@@ -150,6 +198,17 @@ export class Store {
         },
         payload
       );
+    } catch (error) {
+      this.handleError(error);
+      return Promise.reject(error);
+    }
+  }
+
+  handleError(error) {
+    if (this.errorHandler) {
+      this.errorHandler(error);
+    } else {
+      console.error('[Store] Error:', error);
     }
   }
 }
@@ -167,3 +226,5 @@ const xStore = {
 };
 
 $ && $.use(xStore);
+
+export default xStore;

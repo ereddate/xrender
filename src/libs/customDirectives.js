@@ -13,7 +13,6 @@ const customDirectives = {
     },
     update(el, binding, vm) {
       if (vm && vm.data) {
-        // 添加空值检查
         const value = binding.value;
         const prop = el.type === "checkbox" ? "checked" : "value";
         el[prop] = vm.data[value];
@@ -28,7 +27,6 @@ const customDirectives = {
     },
     update(el, binding, vm) {
       if (vm && vm.data) {
-        // 添加空值检查
         el.style.display = vm.data[binding.value] ? "" : "none";
       }
     },
@@ -62,13 +60,11 @@ const customDirectives = {
   text: {
     bind(el, binding, vm) {
       if (vm && vm.data) {
-        // 添加空值检查
         el.textContent = vm.data[binding.value];
       }
     },
     update(el, binding, vm) {
       if (vm && vm.data) {
-        // 添加空值检查
         el.textContent = vm.data[binding.value];
       }
     },
@@ -76,7 +72,6 @@ const customDirectives = {
   on: {
     bind(el, binding, vm) {
       if (vm && vm.methods) {
-        // 添加空值检查
         const eventName = binding.arg;
         const handler = vm.methods[binding.value];
         el.addEventListener(eventName, handler.bind(vm));
@@ -84,7 +79,6 @@ const customDirectives = {
     },
     unbind(el, binding, vm) {
       if (vm && vm.methods) {
-        // 添加空值检查
         const eventName = binding.arg;
         const handler = vm.methods[binding.value];
         el.removeEventListener(eventName, handler.bind(vm));
@@ -171,26 +165,7 @@ const customDirectives = {
     bind(el, binding, vm) {
       el.addEventListener("click", () => {
         const text = binding.value;
-        if (navigator.clipboard) {
-          navigator.clipboard
-            .writeText(text)
-            .then(() => {
-              console.log("复制成功");
-            })
-            .catch((err) => {
-              console.error("复制失败", err);
-            });
-        } else {
-          const textarea = document.createElement("textarea");
-          textarea.value = text;
-          textarea.style.position = "fixed";
-          textarea.style.opacity = "0";
-          document.body.appendChild(textarea);
-          textarea.select();
-          document.execCommand("copy");
-          document.body.removeChild(textarea);
-          console.log("复制成功");
-        }
+        copyToClipboard(text);
       });
     },
   },
@@ -530,7 +505,6 @@ const customDirectives = {
       };
 
       updateHighlight();
-      // 若需要动态更新关键词，可添加监听逻辑
     },
   },
   preventDefault: {
@@ -603,33 +577,14 @@ const customDirectives = {
     bind(el, binding, vm) {
       el.addEventListener("click", () => {
         const text = el.textContent;
-        if (navigator.clipboard) {
-          navigator.clipboard
-            .writeText(text)
-            .then(() => {
-              console.log("复制成功");
-            })
-            .catch((err) => {
-              console.error("复制失败", err);
-            });
-        } else {
-          const textarea = document.createElement("textarea");
-          textarea.value = text;
-          textarea.style.position = "fixed";
-          textarea.style.opacity = "0";
-          document.body.appendChild(textarea);
-          textarea.select();
-          document.execCommand("copy");
-          document.body.removeChild(textarea);
-          console.log("复制成功");
-        }
+        copyToClipboard(text);
       });
     },
   },
   touchSwipe: {
     bind(el, binding, vm) {
       let startX, startY;
-      const THRESHOLD = 50; // 滑动阈值
+      const THRESHOLD = 50;
 
       el.addEventListener("touchstart", (e) => {
         startX = e.touches[0].clientX;
@@ -656,77 +611,6 @@ const customDirectives = {
           }
         }
       });
-    },
-  },
-  clipboard: {
-    bind(el, binding, vm) {
-      el.addEventListener("click", () => {
-        const text = binding.value;
-        if (navigator.clipboard) {
-          navigator.clipboard
-            .writeText(text)
-            .then(() => {
-              console.log("复制成功");
-            })
-            .catch((err) => {
-              console.error("复制失败", err);
-            });
-        } else {
-          const textarea = document.createElement("textarea");
-          textarea.value = text;
-          textarea.style.position = "fixed";
-          textarea.style.opacity = "0";
-          document.body.appendChild(textarea);
-          textarea.select();
-          document.execCommand("copy");
-          document.body.removeChild(textarea);
-          console.log("复制成功");
-        }
-      });
-    },
-  },
-  loadingSpinner: {
-    bind(el, binding, vm) {
-      const spinner = document.createElement("div");
-      spinner.className = "loading-spinner";
-      spinner.style.display = "none";
-      spinner.innerHTML = `
-        <div class="spinner"></div>
-        <style>
-          .loading-spinner {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(255, 255, 255, 0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-          }
-          .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-          }
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        </style>
-      `;
-      el.appendChild(spinner);
-      el.loadingSpinner = spinner;
-    },
-    update(el, binding) {
-      el.loadingSpinner.style.display = binding.value ? "flex" : "none";
-      el.style.pointerEvents = binding.value ? "none" : "auto";
-    },
-    unbind(el) {
-      el.removeChild(el.loadingSpinner);
     },
   },
   draggable: {
@@ -794,7 +678,6 @@ const customDirectives = {
           ? vm.data[binding.value]
           : binding.value;
       updateClasses(initialValue);
-      // 监听数据变化
       if (typeof binding.value === "string") {
         vm.watch[binding.value] = function (newVal, oldVal) {
           if (Array.isArray(oldVal)) {
@@ -845,7 +728,6 @@ const customDirectives = {
           ? vm.data[binding.value]
           : binding.value;
       updateStyles(initialValue);
-      // 监听数据变化
       if (typeof binding.value === "string") {
         vm.watch[binding.value] = function (newVal) {
           updateStyles(newVal);
@@ -865,5 +747,28 @@ const customDirectives = {
     },
   },
 };
+
+function copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        console.log("复制成功");
+      })
+      .catch((err) => {
+        console.error("复制失败", err);
+      });
+  } else {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+    console.log("复制成功");
+  }
+}
 
 export default customDirectives;

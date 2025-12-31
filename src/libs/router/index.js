@@ -1,39 +1,53 @@
-import { Component } from "../core.js";
 const doc = document;
 
+const ROUTER_CONSTANTS = {
+  DEFAULT_PATH: '/',
+  ROUTER_VIEW_SELECTOR: '.router-view',
+  PARAM_PREFIX: ':',
+  QUERY_SEPARATOR: '?',
+  PAIR_SEPARATOR: '&',
+  KEY_VALUE_SEPARATOR: '=',
+  HASH_PREFIX: '#'
+};
+
 export class Router {
+  static version = '1.0.0';
+  
   constructor(routes, rootElement) {
     this.name = "router";
-    this.routes = routes; // 路由配置
-    this.rootElement = rootElement; // 根元素
-    this.currentRoute = null; // 当前路由
-    this.history = []; // 历史记录
-    this.beforeEachHooks = []; // 存储全局前置守卫
-    this.afterEachHooks = []; // 存储 afterEach 钩子
-    this.params = {}; // 新增：存储路径参数
-    this.query = {}; // 新增：存储查询参数
-    this.transition = null; // 新增：过渡动画
-    this.meta = {}; // 新增：存储元信息
-    this.children = []; // 新增：存储子路由
-    this.errorHandler = null; // 新增：错误处理函数
+    this.routes = routes;
+    this.rootElement = rootElement;
+    this.currentRoute = null;
+    this.history = [];
+    this.beforeEachHooks = [];
+    this.afterEachHooks = [];
+    this.params = {};
+    this.query = {};
+    this.transition = null;
+    this.meta = {};
+    this.children = [];
+    this.errorHandler = null;
     this.init();
   }
-  // 新增：设置错误处理函数
+
   setErrorHandler(handler) {
+    if (typeof handler !== 'function') {
+      throw new Error('ErrorHandler must be a function');
+    }
     this.errorHandler = handler;
   }
-  // 新增：设置过渡动画
+
   setTransition(transition) {
     this.transition = transition;
   }
-  // 新增：解析路径参数
+
   parseParams(path, routePath) {
     const params = {};
     const pathParts = path.split("/");
     const routeParts = routePath.split("/");
 
     routeParts.forEach((part, i) => {
-      if (part.startsWith(":")) {
+      if (part.startsWith(ROUTER_CONSTANTS.PARAM_PREFIX)) {
         const paramName = part.slice(1);
         params[paramName] = pathParts[i];
       }
@@ -41,107 +55,147 @@ export class Router {
 
     return params;
   }
-  // 新增：添加子路由
+
   addChildRouter(childRouter) {
+    if (!childRouter || !(childRouter instanceof Router)) {
+      throw new Error('ChildRouter must be an instance of Router');
+    }
     this.children.push(childRouter);
   }
 
-  // 新增：解析查询参数
   parseQuery(hash) {
     const query = {};
-    const queryString = hash.split("?")[1];
+    const queryString = hash.split(ROUTER_CONSTANTS.QUERY_SEPARATOR)[1];
 
     if (queryString) {
-      queryString.split("&").forEach((pair) => {
-        const [key, value] = pair.split("=");
-        query[key] = decodeURIComponent(value);
+      queryString.split(ROUTER_CONSTANTS.PAIR_SEPARATOR).forEach((pair) => {
+        const [key, value] = pair.split(ROUTER_CONSTANTS.KEY_VALUE_SEPARATOR);
+        if (key) {
+          query[key] = value ? decodeURIComponent(value) : '';
+        }
       });
     }
 
     return query;
   }
-  // 添加全局前置守卫
+
   beforeEach(hook) {
+    if (typeof hook !== 'function') {
+      throw new Error('beforeEach hook must be a function');
+    }
     this.beforeEachHooks.push(hook);
   }
-  // 添加 afterEach 钩子
+
   afterEach(hook) {
+    if (typeof hook !== 'function') {
+      throw new Error('afterEach hook must be a function');
+    }
     this.afterEachHooks.push(hook);
   }
-  // 初始化路由
+
   init() {
-    // 监听 hashchange 事件
     window.addEventListener("hashchange", () => this.onHashChange());
-    // 首次加载时触发路由
     if (!window.location.hash) {
-      this.navigate("/"); // 默认跳转到 "/"
+      this.navigate(ROUTER_CONSTANTS.DEFAULT_PATH);
     } else {
       this.onHashChange();
     }
   }
 
-  // 处理 hash 变化
   onHashChange() {
-    const fullHash = window.location.hash.slice(1) || "/";
-    const [path] = fullHash.split("?"); // 分离路径和查询参数
-    const route = this.routes.find((r) => {
-      // 支持路径参数匹配
+    try {
+      const fullHash = window.location.hash.slice(1) || ROUTER_CONSTANTS.DEFAULT_PATH;
+      const [path] = fullHash.split(ROUTER_CONSTANTS.QUERY_SEPARATOR);
+      const route = this.findRoute(path);
+
+      if (route) {
+        this.handleRouteFound(route, path, fullHash);
+      } else {
+        this.handleRouteNotFound(path);
+      }
+    } catch (error) {
+      this.handleError(error);
+    }
+  }
+
+  findRoute(path) {
+    return this.routes.find((r) => {
       const routePathParts = r.path.split("/");
       const pathParts = path.split("/");
 
       if (routePathParts.length !== pathParts.length) return false;
 
       return routePathParts.every((part, i) => {
-        return part.startsWith(":") || part === pathParts[i];
+        return part.startsWith(ROUTER_CONSTANTS.PARAM_PREFIX) || part === pathParts[i];
       });
     });
+  }
 
-    if (route) {
-      this.params = this.parseParams(path, route.path); // 解析路径参数
-      this.query = this.parseQuery(fullHash); // 解析查询参数
-      this.meta = route.meta || {}; // 新增：存储元信息
-      // 执行 beforeEnter 钩子
-      if (route.beforeEnter) {
-        route.beforeEnter(route, () => {
-          this.currentRoute = route;
-          this.history.push(fullHash); // 记录历史
-          this.render();
-        });
-      } else {
-        this.runBeforeEachHooks(route, () => {
-          this.currentRoute = route;
-          this.history.push(fullHash); // 记录历史
-          this.render();
-        });
-      }
-      this.runAfterEachHooks(route);
+  handleRouteFound(route, path, fullHash) {
+    this.params = this.parseParams(path, route.path);
+    this.query = this.parseQuery(fullHash);
+    this.meta = route.meta || {};
+
+    if (route.beforeEnter) {
+      route.beforeEnter(route, () => {
+        this.updateRoute(route, fullHash);
+      });
     } else {
-      if (this.errorHandler) {
-        this.errorHandler(path);
-      } else {
-        console.error(`Route not found: ${path}`);
-      }
+      this.runBeforeEachHooks(route, () => {
+        this.updateRoute(route, fullHash);
+      });
+    }
+
+    this.runAfterEachHooks(route);
+  }
+
+  updateRoute(route, fullHash) {
+    this.currentRoute = route;
+    this.history.push(fullHash);
+    this.render();
+  }
+
+  handleRouteNotFound(path) {
+    if (this.errorHandler) {
+      this.errorHandler(path);
+    } else {
+      console.error(`Route not found: ${path}`);
     }
   }
 
-  // 执行 afterEach 钩子
+  handleError(error) {
+    if (this.errorHandler) {
+      this.errorHandler(error);
+    } else {
+      console.error('Router error:', error);
+    }
+  }
+
   runAfterEachHooks(route) {
     this.afterEachHooks.forEach((hook) => {
-      hook(route);
+      try {
+        hook(route);
+      } catch (error) {
+        console.error('afterEach hook error:', error);
+      }
     });
   }
 
-  // 执行全局前置守卫
   runBeforeEachHooks(route, next) {
     let index = 0;
     const hooks = this.beforeEachHooks;
 
     const runHook = () => {
       if (index < hooks.length) {
-        hooks[index](route, () => {
-          index++;
-          runHook();
-        });
+        try {
+          hooks[index](route, () => {
+            index++;
+            runHook();
+          });
+        } catch (error) {
+          console.error('beforeEach hook error:', error);
+          this.handleError(error);
+        }
       } else {
         next();
       }
@@ -149,103 +203,121 @@ export class Router {
 
     runHook();
   }
-  // 新增：懒加载组件
+
   lazyLoad(loader) {
+    if (typeof loader !== 'function') {
+      throw new Error('loader must be a function');
+    }
     return {
       render: () => {
         loader().then((component) => {
           this.currentRoute.component = component;
           this.render();
+        }).catch((error) => {
+          console.error('Lazy load error:', error);
+          this.handleError(error);
         });
       },
     };
   }
-  // 渲染当前路由对应的组件
+
   render() {
-    if (this.currentRoute) {
-      // 查找 router-view 容器
-      const routerView = document.querySelector(".router-view");
-      if (routerView) {
-        // 清空 router-view 的内容
-        routerView.innerHTML = "";
-        // 创建组件实例并渲染
-        let component = this.currentRoute.component;
-        component = new component.constructor(component.name, {
-          ...component.options,
-        }).init();
-        routerView.appendChild(component.el);
-        if (this.transition) {
-          this.transition.afterEnter(routerView);
-        }
-        // 渲染子路由
-        this.children.forEach((childRouter) => {
-          childRouter.render();
-        });
-      } /*  else {
-        console.error("router-view not found in rootElement");
-      } */
+    if (!this.currentRoute) return;
+
+    const routerView = document.querySelector(ROUTER_CONSTANTS.ROUTER_VIEW_SELECTOR);
+    if (!routerView) {
+      console.warn('router-view not found');
+      return;
+    }
+
+    routerView.innerHTML = "";
+    
+    try {
+      let component = this.currentRoute.component;
+      component = new component.constructor(component.name, {
+        ...component.options,
+      }).init();
+      routerView.appendChild(component.el);
+
+      if (this.transition && this.transition.afterEnter) {
+        this.transition.afterEnter(routerView);
+      }
+
+      this.children.forEach((childRouter) => {
+        childRouter.render();
+      });
+    } catch (error) {
+      console.error('Render error:', error);
+      this.handleError(error);
     }
   }
 
-  // 导航到指定路径
   navigate(path) {
     window.location.hash = path;
   }
-  // 跳转到指定历史记录
+
   go(n) {
     window.history.go(n);
   }
 
-  // 返回上一页
   goback() {
     window.history.back();
   }
 
-  // 导航到新页面并记录历史
   push(path) {
     this.navigate(path);
   }
 
-  // 支持 router-view 组件
-  static RouterView = new Component("router-view", {
-    render(createElem) {
-      return createElem(
-        "div",
-        { class: "router-view" },
-        "Router View Placeholder"
-      );
-    },
-  });
+  static createRouterView() {
+    return {
+      name: 'router-view',
+      render(createElem) {
+        return createElem(
+          'div',
+          { class: 'router-view' },
+          ''
+        );
+      }
+    };
+  }
 
-  // 支持 router-link 组件
-  static RouterLink = new Component("router-link", {
-    render(createElem) {
-      const { to, text } = this.props;
-      return createElem(
-        "a",
-        { href: `#${to}`, "@click.prevent": "navigate" },
-        text || to
-      );
-    },
-    methods: {
-      navigate() {
-        $.$router.push(this.props.to);
+  static createRouterLink() {
+    return {
+      name: 'router-link',
+      props: ['to', 'text'],
+      render(createElem) {
+        const { to, text } = this.props;
+        return createElem(
+          'a',
+          { 
+            href: `${ROUTER_CONSTANTS.HASH_PREFIX}${to}`, 
+            '@click.prevent': 'navigate' 
+          },
+          text || to
+        );
       },
-    },
-  });
+      methods: {
+        navigate() {
+          if ($ && $.$router) {
+            $.$router.push(this.props.to);
+          } else {
+            console.error('$.$router not available');
+          }
+        }
+      }
+    };
+  }
 }
 
 const xRouter = {
   install(app) {
     app.Router = Router;
     app.$router = null;
-    /* app.useRouter = function (routes) {
-      this.$router = new this.Router(routes);
-      return this;
-    }; */
-    app.component("router-view", Router.RouterView);
-    app.component("router-link", Router.RouterLink);
+    app.component('router-view', Router.createRouterView());
+    app.component('router-link', Router.createRouterLink());
   },
 };
-// 暴露 Router 类
+
 $ && $.use(xRouter);
+
+export default xRouter;

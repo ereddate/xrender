@@ -147,7 +147,11 @@ const elemAttrs = function (elem, attributes) {
           if (e.target !== this) return;
         }
 
-        that.methods[value].call(that, e);
+        if (typeof value === 'function') {
+          value.call(that, e);
+        } else {
+          that.methods[value].call(that, e);
+        }
       };
       (XRender.on || on)(elem, eventName, handler);
       that._eventHandlers = that._eventHandlers || [];
@@ -430,21 +434,464 @@ const createElem = function (tagName, attributes = {}, ...children) {
 };
 
 // 新增虚拟节点类
-class VNode {
+export class VNode {
   constructor(tag, attrs, children) {
     this.tag = tag;
     this.attrs = attrs || {};
     this.children = children || [];
     this.key = attrs?.key; // 支持key属性优化diff
-    // 新增静态标记
-    this.isStatic = attrs?.isStatic || false;
+    // 新增静态标记 - 支持isStatic和static属性
+    this.isStatic = attrs?.isStatic || attrs?.static || false;
     // 新增缓存标识
     this.cacheKey = attrs?.cacheKey || null;
     this.el = null;
   }
 }
 
+export class VDOMUtils {
+  // 创建真实DOM元素
+  static createElement(vnode) {
+    if (typeof vnode === 'string' || typeof vnode === 'number') {
+      // 处理文本节点
+      const textNode = doc.createTextNode(vnode);
+      return textNode;
+    }
+    
+    if (vnode.tag === '#text') {
+      // 处理文本节点
+      const textNode = doc.createTextNode(vnode.children.join(''));
+      vnode.el = textNode;
+      return textNode;
+    }
+    
+    const element = createElement(vnode.tag);
+    
+    // 设置属性
+    this.setElementAttributes(element, vnode.attrs);
+    
+    // 处理静态节点标记
+    if (vnode.isStatic) {
+      element.setAttribute('data-static', 'true');
+    }
+    
+    // 处理子节点
+    if (vnode.children && vnode.children.length > 0) {
+      vnode.children.forEach(child => {
+        const childElement = this.createElement(child);
+        element.appendChild(childElement);
+      });
+    }
+    
+    // 保存真实DOM引用
+    vnode.el = element;
+    
+    return element;
+  }
+  
+  // 设置元素属性
+  static setElementAttributes(element, attrs) {
+    if (!attrs) return;
+    
+    Object.entries(attrs).forEach(([key, value]) => {
+      if (key === 'style') {
+        // 处理样式对象
+        if (typeof value === 'object') {
+          Object.entries(value).forEach(([styleKey, styleValue]) => {
+            element.style[styleKey] = styleValue;
+          });
+        } else {
+          element.setAttribute('style', value);
+        }
+      } else if (key.startsWith('on')) {
+        // 处理事件
+        const eventName = key.slice(2).toLowerCase();
+        element.addEventListener(eventName, value);
+      } else if (key === 'class' || key === 'className') {
+        // 处理类名
+        element.className = value;
+      } else if (key === 'static' || key === 'isStatic') {
+        // 处理静态节点标记
+        if (value) {
+          element.setAttribute('data-static', 'true');
+        }
+      } else {
+        // 处理普通属性
+        element.setAttribute(key, value);
+      }
+    });
+  }
+  
+  // 虚拟DOM差异算法 (diff)
+  static diff(oldVnode, newVnode, parentEl, index) {
+    // 如果新旧节点完全相同，直接返回
+    if (oldVnode === newVnode) return oldVnode.el;
+    
+    // 如果节点类型不同，直接替换
+    if (!this.isSameNodeType(oldVnode, newVnode)) {
+      const newEl = this.createElement(newVnode);
+      // 使用传入的parentEl和index进行替换，确保安全操作
+      if (parentEl && index !== undefined) {
+        const targetNode = parentEl.childNodes[index];
+        if (targetNode && targetNode.parentNode === parentEl) {
+          parentEl.replaceChild(newEl, targetNode);
+        } else {
+          // 如果指定索引处没有节点或节点不在正确位置，尝试使用oldVnode.el
+          if (oldVnode.el && oldVnode.el.parentNode === parentEl) {
+            parentEl.replaceChild(newEl, oldVnode.el);
+          } else if (oldVnode.el && oldVnode.el.parentNode) {
+            oldVnode.el.parentNode.replaceChild(newEl, oldVnode.el);
+          } else {
+            parentEl.appendChild(newEl);
+          }
+        }
+      } else if (oldVnode.el && oldVnode.el.parentNode) {
+        oldVnode.el.parentNode.replaceChild(newEl, oldVnode.el);
+      }
+      return newEl;
+    }
+    
+    // 如果是文本节点
+    if (typeof oldVnode === 'string' || typeof oldVnode === 'number' || 
+        typeof newVnode === 'string' || typeof newVnode === 'number') {
+      if (oldVnode !== newVnode) {
+        const textNode = doc.createTextNode(newVnode);
+        // 使用传入的parentEl和index进行替换，确保安全操作
+        if (parentEl && index !== undefined) {
+          const targetNode = parentEl.childNodes[index];
+          if (targetNode && targetNode.parentNode === parentEl) {
+            parentEl.replaceChild(textNode, targetNode);
+          } else {
+            // 如果指定索引处没有节点或节点不在正确位置，尝试使用oldVnode.el
+            if (oldVnode.el && oldVnode.el.parentNode === parentEl) {
+              parentEl.replaceChild(textNode, oldVnode.el);
+            } else if (oldVnode.el && oldVnode.el.parentNode) {
+              oldVnode.el.parentNode.replaceChild(textNode, oldVnode.el);
+            } else {
+              parentEl.appendChild(textNode);
+            }
+          }
+        } else if (oldVnode.el && oldVnode.el.parentNode) {
+          oldVnode.el.parentNode.replaceChild(textNode, oldVnode.el);
+        }
+        return textNode;
+      }
+      return oldVnode.el || (parentEl && index !== undefined ? parentEl.childNodes[index] : null);
+    }
+    
+    // 更新元素属性
+    this.updateElementAttributes(oldVnode.el, oldVnode.attrs, newVnode.attrs);
+    
+    // 更新子节点 - 检查是否有key，决定使用哪种diff算法
+    if (oldVnode.el) {
+      // 检查子节点是否有key，如果有则使用keyed diff
+      const hasKeyedChildren = (oldVnode.children || []).some(child => child.key !== undefined) || 
+                               (newVnode.children || []).some(child => child.key !== undefined);
+      if (hasKeyedChildren) {
+        this.keyedDiffChildren(oldVnode, newVnode, oldVnode.el);
+      } else {
+        this.diffChildren(oldVnode, newVnode, oldVnode.el);
+      }
+    }
+    
+    return oldVnode.el;
+  }
+  
+  // 判断节点类型是否相同
+  static isSameNodeType(node1, node2) {
+    if (typeof node1 !== typeof node2) return false;
+    if (typeof node1 === 'string' || typeof node1 === 'number') return true;
+    if (node1 && node2 && node1.tag && node2.tag) {
+      return node1.tag === node2.tag;
+    }
+    return false;
+  }
+  
+  // 更新元素属性
+  static updateElementAttributes(element, oldAttrs, newAttrs) {
+    if (!oldAttrs) oldAttrs = {};
+    if (!newAttrs) newAttrs = {};
+    
+    // 获取所有需要处理的属性键
+    const allKeys = new Set([...Object.keys(oldAttrs), ...Object.keys(newAttrs)]);
+    
+    allKeys.forEach(key => {
+      const oldValue = oldAttrs[key];
+      const newValue = newAttrs[key];
+      
+      // 如果新值不存在，移除属性
+      if (newValue === undefined) {
+        if (key.startsWith('on')) {
+          const eventName = key.slice(2).toLowerCase();
+          element.removeEventListener(eventName, oldValue);
+        } else {
+          element.removeAttribute(key);
+        }
+      } 
+      // 如果旧值不存在，添加属性
+      else if (oldValue === undefined) {
+        if (key.startsWith('on')) {
+          const eventName = key.slice(2).toLowerCase();
+          element.addEventListener(eventName, newValue);
+        } else if (key === 'style') {
+          // 更新样式
+          if (typeof newValue === 'object') {
+            Object.entries(newValue).forEach(([styleKey, styleValue]) => {
+              element.style[styleKey] = styleValue;
+            });
+          } else {
+            element.setAttribute('style', newValue);
+          }
+        } else {
+          element.setAttribute(key, newValue);
+        }
+      } 
+      // 如果值不同，更新属性
+      else if (oldValue !== newValue) {
+        if (key.startsWith('on')) {
+          const eventName = key.slice(2).toLowerCase();
+          element.removeEventListener(eventName, oldValue);
+          element.addEventListener(eventName, newValue);
+        } else if (key === 'style') {
+          // 更新样式
+          if (typeof newValue === 'object') {
+            // 清除旧样式
+            if (typeof oldValue === 'object') {
+              Object.keys(oldValue).forEach(styleKey => {
+                if (!(styleKey in newValue)) {
+                  element.style[styleKey] = '';
+                }
+              });
+            }
+            // 设置新样式
+            Object.entries(newValue).forEach(([styleKey, styleValue]) => {
+              element.style[styleKey] = styleValue;
+            });
+          } else {
+            element.setAttribute('style', newValue);
+          }
+        } else {
+          element.setAttribute(key, newValue);
+        }
+      }
+    });
+  }
+  
+  // 对比子节点
+  static diffChildren(oldVnode, newVnode, parentEl) {
+    const oldChildren = oldVnode.children || [];
+    const newChildren = newVnode.children || [];
+    
+    const maxLength = Math.max(oldChildren.length, newChildren.length);
+    
+    for (let i = 0; i < maxLength; i++) {
+      const oldChild = oldChildren[i];
+      const newChild = newChildren[i];
+      
+      if (oldChild === undefined) {
+        // 新增节点
+        const newEl = this.createElement(newChild);
+        parentEl.appendChild(newEl);
+      } else if (newChild === undefined) {
+        // 删除节点
+        if (oldChild.el && oldChild.el.parentNode) {
+          oldChild.el.parentNode.removeChild(oldChild.el);
+        }
+      } else {
+        // 更新节点
+        this.diff(oldChild, newChild, parentEl, i);
+      }
+    }
+  }
+  
+  // 使用key优化的diff算法
+  static keyedDiff(oldVnode, newVnode, parentEl) {
+    if (!oldVnode || !newVnode) return;
+    
+    // 如果是文本节点或类型不同，直接替换
+    if (typeof oldVnode !== typeof newVnode || 
+        (oldVnode.tag && newVnode.tag && oldVnode.tag !== newVnode.tag)) {
+      const newEl = this.createElement(newVnode);
+      parentEl.replaceChild(newEl, oldVnode.el);
+      return;
+    }
+    
+    // 更新节点属性
+    this.updateElementAttributes(oldVnode.el, oldVnode.attrs, newVnode.attrs);
+    
+    // 对子节点进行keyed diff
+    this.keyedDiffChildren(oldVnode, newVnode, parentEl);
+  }
+  
+  // 使用key优化的子节点diff
+  static keyedDiffChildren(oldVnode, newVnode, parentEl) {
+    const oldChildren = oldVnode.children || [];
+    const newChildren = newVnode.children || [];
+    
+    let oldStartIdx = 0;
+    let newStartIdx = 0;
+    let oldEndIdx = oldChildren.length - 1;
+    let newEndIdx = newChildren.length - 1;
+    
+    let oldStartVnode = oldChildren[oldStartIdx];
+    let newStartVnode = newChildren[newStartIdx];
+    let oldEndVnode = oldChildren[oldEndIdx];
+    let newEndVnode = newChildren[newEndIdx];
+    
+    const oldKeyMap = {};
+    // 构建旧节点的key映射
+    for (let i = 0; i <= oldEndIdx; i++) {
+      const key = oldChildren[i].key;
+      if (key) {
+        oldKeyMap[key] = i;
+      }
+    }
+    
+    while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
+      if (!oldStartVnode) {
+        oldStartVnode = oldChildren[++oldStartIdx];
+      } else if (!oldEndVnode) {
+        oldEndVnode = oldChildren[--oldEndIdx];
+      } else if (this.isSameKey(oldStartVnode, newStartVnode)) {
+        // 头头相同，更新节点
+        this.diff(oldStartVnode, newStartVnode, parentEl, oldStartIdx);
+        oldStartVnode = oldChildren[++oldStartIdx];
+        newStartVnode = newChildren[++newStartIdx];
+      } else if (this.isSameKey(oldEndVnode, newEndVnode)) {
+        // 尾尾相同，更新节点
+        this.diff(oldEndVnode, newEndVnode, parentEl, oldEndIdx);
+        oldEndVnode = oldChildren[--oldEndIdx];
+        newEndVnode = newChildren[--newEndIdx];
+      } else if (this.isSameKey(oldStartVnode, newEndVnode)) {
+        // 头尾相同，移动节点
+        if (oldStartVnode.el && oldStartVnode.el.parentNode === parentEl) {
+          parentEl.insertBefore(oldStartVnode.el, oldEndVnode.el.nextSibling);
+        }
+        this.diff(oldStartVnode, newEndVnode, parentEl, oldStartIdx);
+        oldStartVnode = oldChildren[++oldStartIdx];
+        newEndVnode = newChildren[--newEndIdx];
+      } else if (this.isSameKey(oldEndVnode, newStartVnode)) {
+        // 尾头相同，移动节点
+        if (oldEndVnode.el && oldEndVnode.el.parentNode === parentEl) {
+          parentEl.insertBefore(oldEndVnode.el, oldStartVnode.el);
+        }
+        this.diff(oldEndVnode, newStartVnode, parentEl, oldEndIdx);
+        oldEndVnode = oldChildren[--oldEndIdx];
+        newStartVnode = newChildren[++newStartIdx];
+      } else {
+        // 没有找到相同的节点，尝试使用key查找
+        const idxInOld = oldKeyMap[newStartVnode.key];
+        if (idxInOld === undefined) {
+          // 新增节点
+          const newEl = this.createElement(newStartVnode);
+          if (oldStartVnode && oldStartVnode.el) {
+            parentEl.insertBefore(newEl, oldStartVnode.el);
+          } else {
+            parentEl.appendChild(newEl);
+          }
+          newStartVnode = newChildren[++newStartIdx];
+        } else {
+          // 移动节点
+          const movedVnode = oldChildren[idxInOld];
+          if (movedVnode.el && movedVnode.el.parentNode === parentEl) {
+            if (oldStartVnode && oldStartVnode.el) {
+              parentEl.insertBefore(movedVnode.el, oldStartVnode.el);
+            } else {
+              parentEl.appendChild(movedVnode.el);
+            }
+          }
+          this.diff(movedVnode, newStartVnode, parentEl, idxInOld);
+          oldChildren[idxInOld] = undefined;
+          newStartVnode = newChildren[++newStartIdx];
+        }
+      }
+    }
+    
+    // 处理剩余的旧节点
+    while (oldStartIdx <= oldEndIdx) {
+      if (oldStartVnode) {
+        if (oldStartVnode.el && oldStartVnode.el.parentNode === parentEl) {
+          parentEl.removeChild(oldStartVnode.el);
+        }
+        oldStartIdx++;
+      }
+      if (oldStartIdx <= oldEndIdx) {
+        oldStartVnode = oldChildren[oldStartIdx];
+      }
+    }
+    
+    // 处理剩余的新节点
+    while (newStartIdx <= newEndIdx) {
+      const newEl = this.createElement(newChildren[newStartIdx]);
+      if (oldStartIdx <= oldEndIdx && oldStartVnode && oldStartVnode.el) {
+        parentEl.insertBefore(newEl, oldStartVnode.el);
+      } else {
+        parentEl.appendChild(newEl);
+      }
+      newStartIdx++;
+    }
+  }
+  
+  // 判断两个节点是否具有相同的key
+  static isSameKey(vnode1, vnode2) {
+    return vnode1.key === vnode2.key;
+  }
+}
+
+// 批量更新优化
+class BatchUpdater {
+  constructor() {
+    this.pendingUpdates = new Set();
+    this.isFlushing = false;
+    this.watchCallbacks = new Map(); // 存储watch回调列表
+  }
+  
+  add(component, key, value, oldVal) {
+    this.pendingUpdates.add(component);
+    
+    // 存储watch回调信息列表
+    if (key !== undefined) {
+      if (!this.watchCallbacks.has(component)) {
+        this.watchCallbacks.set(component, []);
+      }
+      this.watchCallbacks.get(component).push({ key, value, oldVal });
+    }
+    
+    this.scheduleFlush();
+  }
+  
+  scheduleFlush() {
+    if (!this.isFlushing) {
+      this.isFlushing = true;
+      Promise.resolve().then(() => {
+        this.flush();
+      });
+    }
+  }
+  
+  flush() {
+    this.pendingUpdates.forEach(component => {
+      component.update();
+      
+      // 触发watch回调列表
+      const watchList = this.watchCallbacks.get(component);
+      if (watchList && watchList.length > 0) {
+        watchList.forEach(watchInfo => {
+          component.triggerWatch(watchInfo.key, watchInfo.value, watchInfo.oldVal);
+        });
+      }
+    });
+    this.pendingUpdates.clear();
+    this.watchCallbacks.clear();
+    this.isFlushing = false;
+  }
+}
+
+// 新增批量更新器实例
+const batchUpdater = new BatchUpdater();
+
 export class Component {
+  static version = '1.1.0';
+  
   constructor(name, options, parent = null) {
     this.name = name;
     this.options = options || {};
@@ -537,6 +984,12 @@ export class Component {
     this.mixins = options?.mixins || [];
     // 新增错误边界
     this.errorCaptured = options.errorCaptured || null;
+    
+    // 添加render方法，用于创建虚拟DOM
+    if (options?.render) {
+      this.render = options.render.bind(this);
+    }
+    
     return this;
   }
 
@@ -737,6 +1190,35 @@ export class Component {
       return data;
     }
     const vm = this;
+
+    // 如果是数组，重写数组方法
+    if (Array.isArray(data)) {
+      const arrayMethods = [
+        "push",
+        "pop",
+        "shift",
+        "unshift",
+        "splice",
+        "sort",
+        "reverse",
+      ];
+      arrayMethods.forEach((method) => {
+        const original = Array.prototype[method];
+        Object.defineProperty(data, method, {
+          value: function (...args) {
+            const oldVal = [...this];
+            const result = original.apply(this, args);
+            vm.update();
+            vm.triggerWatch(method, this, oldVal);
+            return result;
+          },
+          enumerable: false,
+          writable: true,
+          configurable: true
+        });
+      });
+    }
+
     const handler = {
       get(target, key) {
         const value = Reflect.get(target, key);
@@ -773,28 +1255,6 @@ export class Component {
       },
     };
 
-    // 如果是数组，重写数组方法
-    if (Array.isArray(data)) {
-      const arrayMethods = [
-        "push",
-        "pop",
-        "shift",
-        "unshift",
-        "splice",
-        "sort",
-        "reverse",
-      ];
-      arrayMethods.forEach((method) => {
-        const original = Array.prototype[method];
-        data[method] = function (...args) {
-          const oldVal = [...this];
-          const result = original.apply(this, args);
-          vm.update();
-          vm.triggerWatch(method, this, oldVal);
-          return result;
-        };
-      });
-    }
     const proxy = new Proxy(data || {}, handler);
     Object.defineProperty(proxy, "__observed__", {
       value: true,
@@ -841,26 +1301,42 @@ export class Component {
       this.batchUpdate((fragment) => {
         that.beforeUpdate?.call(that);
         if (that.isMounted) {
-          const newEl = that.render.call(that, function () {
+          // 获取新的虚拟DOM或真实DOM
+          const newVnode = that.render.call(that, function () {
             return createElem.call(that, ...arguments);
           });
-          fragment.appendChild(newEl); // 将新节点添加到 DocumentFragment
+          
+          // 检查newVnode是否已经是真实DOM元素
+          if (newVnode && typeof newVnode.nodeType === 'number') {
+            // 如果是真实DOM元素，直接替换
+            if (that.el.parentNode) {
+              that.el.parentNode.replaceChild(newVnode, that.el);
+              that.el = newVnode;
+            }
+          } else if (that.vnode) {
+            // 使用key优化的diff算法
+            VDOMUtils.keyedDiff(that.vnode, newVnode, that.el.parentNode);
+            that.vnode = newVnode;
+          } else {
+            // 初次渲染
+            that.vnode = newVnode;
+            that.el = VDOMUtils.createElement(that.vnode);
+          }
+          
           // 调用指令的 update 钩子
           Object.entries(XRender.directives).forEach(([name, directive]) => {
             const attributeName = `v-${name}`;
-            const attributeValue = newEl.getAttribute(attributeName);
-            if (newEl && attributeValue !== null) {
+            const attributeValue = that.el.getAttribute(attributeName);
+            if (that.el && attributeValue !== null) {
               const bindingValue = that.data[attributeValue] ?? attributeValue;
               directive.update?.call(
                 that,
-                newEl,
+                that.el,
                 { value: bindingValue },
                 that
               );
             }
           });
-          that.el.parentNode?.replaceChild(fragment, that.el);
-          that.el = newEl;
         }
         XRender.nextTick(() => {
           that.updated?.call(that);
@@ -965,10 +1441,24 @@ export class Component {
   }
   setup() {
     const vm = this;
-    this.el = this.render.call(vm, function () {
-      const elem = createElem.call(vm, ...arguments);
-      return elem;
-    });
+    // 使用虚拟DOM创建元素
+    if (this.render) {
+      // 使用新的虚拟DOM渲染方式
+      this.vnode = this.render.call(vm, function () {
+        return createElem.call(vm, ...arguments);
+      });
+      // 检查vnode是否已经是真实DOM元素
+      if (this.vnode && typeof this.vnode.nodeType === 'number') {
+        this.el = this.vnode;
+      } else {
+        this.el = VDOMUtils.createElement(this.vnode);
+      }
+    } else {
+      this.el = this.render.call(vm, function () {
+        const elem = createElem.call(vm, ...arguments);
+        return elem;
+      });
+    }
 
     // 方法绑定和代理
     if (this.methods) {
@@ -1033,17 +1523,12 @@ const XRender = {
   _isUpdating: false,
 
   queueUpdate(component, key, value, oldVal) {
-    this._updateQueue.add(component);
+    // 使用新的批量更新器
+    batchUpdater.add(component, key, value, oldVal);
     if (!this._isUpdating) {
       this._isUpdating = true;
       Promise.resolve().then(() => {
         this._isUpdating = false;
-        const queue = Array.from(this._updateQueue);
-        this._updateQueue.clear();
-        queue.forEach((c) => {
-          c.update();
-          c.triggerWatch(key, value, oldVal);
-        });
       });
     }
   },
@@ -1263,4 +1748,5 @@ Object.entries(customDirectives).forEach(([name, directive]) => {
 });
 
 window.$ = XRender;
+
 export default XRender;

@@ -1,12 +1,18 @@
 class Fetch {
+  static version = '1.1.0';
+  
   constructor() {
     this.interceptors = {
       request: [],
       response: [],
     };
-    this.mockData = new Map(); // 存储模拟数据
+    this.mockData = new Map();
+    this.activeRequests = new Map();
+    this.defaultTimeout = 10000;
+    this.maxRetries = 3;
+    this.retryDelay = 1000;
+    this.debug = false;
     this.randomGenerators = {
-      // 随机数据生成器
       string: (length = 8) => {
         const chars =
           "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -99,6 +105,73 @@ class Fetch {
     this.interceptors.response.push({ fulfilled, rejected });
   }
 
+  // 设置默认超时时间
+  setDefaultTimeout(timeout) {
+    if (typeof timeout !== 'number' || timeout <= 0) {
+      console.error('[Fetch] Invalid timeout value');
+      return;
+    }
+    this.defaultTimeout = timeout;
+  }
+
+  // 设置最大重试次数
+  setMaxRetries(retries) {
+    if (typeof retries !== 'number' || retries < 0) {
+      console.error('[Fetch] Invalid retries value');
+      return;
+    }
+    this.maxRetries = retries;
+  }
+
+  // 设置重试延迟
+  setRetryDelay(delay) {
+    if (typeof delay !== 'number' || delay <= 0) {
+      console.error('[Fetch] Invalid retry delay value');
+      return;
+    }
+    this.retryDelay = delay;
+  }
+
+  // 启用/禁用调试模式
+  setDebug(enabled) {
+    this.debug = enabled;
+  }
+
+  // 取消指定请求
+  cancel(requestId) {
+    if (this.activeRequests.has(requestId)) {
+      const { xhr, timeoutId } = this.activeRequests.get(requestId);
+      xhr.abort();
+      clearTimeout(timeoutId);
+      this.activeRequests.delete(requestId);
+      if (this.debug) {
+        console.log(`[Fetch] Request cancelled: ${requestId}`);
+      }
+    }
+  }
+
+  // 取消所有活动请求
+  cancelAll() {
+    this.activeRequests.forEach(({ xhr, timeoutId }, requestId) => {
+      xhr.abort();
+      clearTimeout(timeoutId);
+      if (this.debug) {
+        console.log(`[Fetch] Request cancelled: ${requestId}`);
+      }
+    });
+    this.activeRequests.clear();
+  }
+
+  // 生成唯一请求ID
+  _generateRequestId() {
+    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  // 延迟函数
+  _delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
   // 执行请求拦截器
   _runRequestInterceptors(config) {
     return this.interceptors.request.reduce((promise, interceptor) => {
@@ -115,56 +188,121 @@ class Fetch {
 
   // 发送请求
   request(config) {
-    return this._runRequestInterceptors(config)
-      .then((config) => {
-        // 检查是否有匹配的模拟数据
-        const mockKey = `${config.method.toUpperCase()} ${config.url}`;
-        if (this.mockData.has(mockKey)) {
-          const { response, count, skipFields } = this.mockData.get(mockKey);
-          const data = Array.from({ length: count }, () =>
-            this._generateRandomData(response, skipFields)
-          );
-          return Promise.resolve({
-            data: count === 1 ? data[0] : data, // 如果数量为1，返回单个对象；否则返回数组
-            status: 200,
-            statusText: "OK",
-            config,
-          });
-        }
+    const requestId = this._generateRequestId();
+    const timeout = config.timeout || this.defaultTimeout;
+    const maxRetries = config.maxRetries !== undefined ? config.maxRetries : this.maxRetries;
+    const retryDelay = config.retryDelay !== undefined ? config.retryDelay : this.retryDelay;
 
-        // 原有请求逻辑
-        return new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open(config.method || "GET", config.url, true);
+    if (this.debug) {
+      console.log(`[Fetch] Starting request: ${requestId}`, config);
+    }
 
-          if (config.headers) {
-            Object.keys(config.headers).forEach((key) => {
-              xhr.setRequestHeader(key, config.headers[key]);
+    const attemptRequest = (attempt = 0) => {
+      return this._runRequestInterceptors(config)
+        .then((config) => {
+          const mockKey = `${config.method.toUpperCase()} ${config.url}`;
+          if (this.mockData.has(mockKey)) {
+            const { response, count, skipFields } = this.mockData.get(mockKey);
+            const data = Array.from({ length: count }, () =>
+              this._generateRandomData(response, skipFields)
+            );
+            return Promise.resolve({
+              data: count === 1 ? data[0] : data,
+              status: 200,
+              statusText: "OK",
+              config,
+              requestId,
             });
           }
 
-          xhr.onload = () => {
-            const response = {
-              data: xhr.response,
-              status: xhr.status,
-              statusText: xhr.statusText,
-              headers: xhr.getAllResponseHeaders(),
-              config: config,
-              request: xhr,
+          return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open(config.method || "GET", config.url, true);
+
+            if (config.headers) {
+              Object.keys(config.headers).forEach((key) => {
+                xhr.setRequestHeader(key, config.headers[key]);
+              });
+            }
+
+            const timeoutId = setTimeout(() => {
+              xhr.abort();
+              this.activeRequests.delete(requestId);
+              reject(new Error(`Request timeout after ${timeout}ms`));
+            }, timeout);
+
+            this.activeRequests.set(requestId, { xhr, timeoutId });
+
+            xhr.onload = () => {
+              clearTimeout(timeoutId);
+              this.activeRequests.delete(requestId);
+
+              const response = {
+                data: xhr.response,
+                status: xhr.status,
+                statusText: xhr.statusText,
+                headers: xhr.getAllResponseHeaders(),
+                config: config,
+                request: xhr,
+                requestId,
+              };
+
+              if (xhr.status >= 200 && xhr.status < 300) {
+                this._runResponseInterceptors(response).then(resolve, reject);
+              } else {
+                const error = new Error(`Request failed with status ${xhr.status}`);
+                error.response = response;
+                reject(error);
+              }
             };
-            this._runResponseInterceptors(response).then(resolve, reject);
-          };
 
-          xhr.onerror = () => {
-            reject(new Error("Network Error"));
-          };
+            xhr.onerror = () => {
+              clearTimeout(timeoutId);
+              this.activeRequests.delete(requestId);
+              reject(new Error("Network Error"));
+            };
 
-          xhr.send(config.data);
+            xhr.ontimeout = () => {
+              clearTimeout(timeoutId);
+              this.activeRequests.delete(requestId);
+              reject(new Error(`Request timeout after ${timeout}ms`));
+            };
+
+            xhr.timeout = timeout;
+
+            try {
+              xhr.send(config.data);
+            } catch (error) {
+              clearTimeout(timeoutId);
+              this.activeRequests.delete(requestId);
+              reject(error);
+            }
+          });
+        })
+        .catch(async (error) => {
+          if (attempt < maxRetries && this._shouldRetry(error)) {
+            if (this.debug) {
+              console.log(`[Fetch] Retrying request: ${requestId}, attempt ${attempt + 1}/${maxRetries}`);
+            }
+            await this._delay(retryDelay * (attempt + 1));
+            return attemptRequest(attempt + 1);
+          }
+          throw error;
         });
-      })
-      .catch((error) => {
-        return Promise.reject(error);
-      });
+    };
+
+    return attemptRequest();
+  }
+
+  // 判断是否应该重试
+  _shouldRetry(error) {
+    if (error.message.includes('timeout') || error.message.includes('Network Error')) {
+      return true;
+    }
+    if (error.response && error.response.status >= 500) {
+      return true;
+    }
+    return false;
   }
 }
 
@@ -175,3 +313,6 @@ const xFetch = {
 };
 
 $ && $.use(xFetch);
+
+export { Fetch };
+export default xFetch;

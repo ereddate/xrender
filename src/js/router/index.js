@@ -4,22 +4,25 @@ import { Router } from "../../libs/router";
 const routes = [
   { path: "/", component: Home },
   { path: "/about", component: About },
-  { path: "*", component: NotFound }, // 404 页面
+  { path: "*", component: NotFound },
 ];
 
 const router = new Router(routes);
-// 全局前置守卫
+
+let isAuthenticated = false;
+
 router.beforeEach((to, next) => {
   console.log(`beforeEach Navigated to: ${to.path}`);
   if (to.path === "/admin" && !isAuthenticated) {
-    next("/login"); // 重定向到登录页
+    next("/login");
   } else {
-    next(); // 继续路由跳转
+    next();
   }
 });
+
 router.afterEach((to) => {
   console.log(`afterEach Navigated to: ${to.path}`);
-  window.scrollTo(0, 0); // 页面滚动到顶部
+  window.scrollTo(0, 0);
 });
 
 export default router;

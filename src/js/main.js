@@ -144,29 +144,39 @@
       this.options = options;
       this.props = options.props || {};
       this.render = options.render;
-      this.data = this.observe({ ...options.data?.(), ...this.props }); // 数据响应式处理
+      this.data = this.observe({ ...options.data?.(), ...this.props });
       this.methods = options.methods;
       this.watch = options.watch;
+      this.computed = options.computed;
       this.$slots = options.slots || {};
       this.el = null;
       this.isMounted = false;
 
-      // 初始化观察者
+      this.initComputed();
       this.initWatcher();
-      // 生命周期钩子调用
       options.created?.call(this);
       this.setup();
       options.mounted?.call(this);
     }
 
-    // 数据响应式实现
+    initComputed() {
+      if (this.computed) {
+        Object.entries(this.computed).forEach(([key, fn]) => {
+          Object.defineProperty(this.data, key, {
+            get: () => fn.call(this),
+            enumerable: true,
+            configurable: true
+          });
+        });
+      }
+    }
+
     observe(data) {
       const vm = this;
       return new Proxy(data || {}, {
         set(target, key, value) {
           const oldVal = target[key];
           target[key] = value;
-          // 触发更新
           if (oldVal !== value) {
             vm.update();
             vm.triggerWatch(key, value, oldVal);
@@ -176,7 +186,6 @@
       });
     }
 
-    // 观察者模式实现
     initWatcher() {
       if (this.watch) {
         Object.entries(this.watch).forEach(([key, fn]) => {
@@ -185,14 +194,12 @@
       }
     }
 
-    // 触发监听回调
     triggerWatch(key, newVal, oldVal) {
       if (this.watch?.[key]) {
         this.watch[key].call(this, newVal, oldVal);
       }
     }
 
-    // 新增更新机制
     update() {
       const that = this;
       if (this.isMounted) {
@@ -211,7 +218,6 @@
       });
       this.isMounted = true;
 
-      // 方法绑定和代理
       if (this.methods) {
         Object.entries(this.methods).forEach(([key, value]) => {
           vm[key] = value.bind(vm);
@@ -242,13 +248,13 @@
         children = [component.el];
       } else if (Array.isArray(children))
         children = children.map((child) =>
-          isComponent(child)
-            ? new child.constructo(child.name, {
-                ...child.options,
-                //props: child.props,
-              }).el
-            : child
-        );
+        isComponent(child)
+          ? new child.constructor(child.name, {
+              ...child.options,
+              //props: child.props,
+            }).el
+          : child
+      );
       else children = [children];
       children.forEach((child) => this.el.appendChild(child));
       return this;
