@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XRender 生命周期钩子示例</title>
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .hook-demo {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .hook-demo h2 {
+            margin: 0 0 10px 0;
+            color: #555;
+        }
+        .log-container {
+            background: #222;
+            color: #fff;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            margin-top: 10px;
+        }
+        .log-entry {
+            padding: 5px;
+            border-bottom: 1px solid #333;
+        }
+        .log-entry.mounted {
+            color: #4CAF50;
+        }
+        .log-entry.before-update {
+            color: #FF9800;
+        }
+        .log-entry.updated {
+            color: #2196F3;
+        }
+        .log-entry.unmounted {
+            color: #F44336;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        button {
+            padding: 8px 16px;
+            font-size: 14px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:active {
+            background: #3e8e41;
+        }
+        .warning {
+            color: #FF5722;
+            font-weight: bold;
+        }
+        .component-container {
+            margin: 20px 0;
+            padding: 15px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>XRender 生命周期钩子示例</h1>
+        
+        <div class="hook-demo">
+            <h2>组件生命周期钩子演示</h2>
+            <p>这个示例演示了 XRender 中各种生命周期钩子的使用和触发时机。</p>
+            
+            <div class="controls">
+                <button id="toggle-btn">创建/销毁组件</button>
+                <button id="update-btn">更新组件数据</button>
+                <button id="clear-log-btn">清空日志</button>
+            </div>
+            
+            <div class="component-container">
+                <div id="component-app"></div>
+            </div>
+            
+            <div class="log-container" id="log-container">
+                <div class="log-entry">等待组件操作...</div>
+            </div>
+        </div>
+        
+        <div class="hook-demo">
+            <h2>生命周期钩子说明</h2>
+            <ul>
+                <li><strong>onMounted</strong> - 组件挂载后调用，常用于数据获取、DOM 操作等</li>
+                <li><strong>onBeforeUpdate</strong> - 组件更新前调用，可用于获取更新前的状态</li>
+                <li><strong>onUpdated</strong> - 组件更新后调用，常用于响应式更新后的操作</li>
+                <li><strong>onUnmounted</strong> - 组件卸载前调用，常用于清理定时器、事件监听器等</li>
+                <li><strong>onBeforeUnmount</strong> - 组件卸载前调用（在 onUnmounted 之前）</li>
+            </ul>
+            <p class="warning">注意：onBeforeUpdate 和 onUpdated 钩子在组件数据变化时才会被调用。</p>
+        </div>
+    </div>
+
+    <!-- 引入 XRender 框架 -->
+    <script type="module">
+        // 引入 XRender 框架
+        import XRender from '../src/libs/core.js';
+        import { onMounted, onUpdated, onUnmounted, onBeforeUpdate, onBeforeUnmount } from '../src/libs/reactivity.js';
+        
+        // 日志记录函数
+        const logContainer = document.getElementById('log-container');
+        function addLog(message, type) {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = message;
+            logContainer.insertBefore(logEntry, logContainer.firstChild);
+        }
+        
+        // 清空日志
+        document.getElementById('clear-log-btn').addEventListener('click', () => {
+            logContainer.innerHTML = '<div class="log-entry">日志已清空</div>';
+        });
+        
+        let componentInstance = null;
+        
+        // 组件创建函数
+        function createComponent() {
+            if (componentInstance) {
+                componentInstance.destroy();
+                componentInstance = null;
+                addLog('组件已销毁', 'unmounted');
+                document.getElementById('toggle-btn').textContent = '创建组件';
+                return;
+            }
+            
+            // 创建组件
+            const TestComponent = XRender.component('TestComponent', {
+                data() {
+                    return {
+                        message: '初始消息',
+                        counter: 0,
+                        timestamp: new Date().toLocaleTimeString()
+                    };
+                },
+                setup() {
+                    // 使用生命周期钩子
+                    onMounted(() => {
+                        addLog('组件已挂载 (onMounted)', 'mounted');
+                    });
+                    
+                    onBeforeUpdate(() => {
+                        addLog(`组件更新前 (onBeforeUpdate) - 计数器: ${this.data.counter}`, 'before-update');
+                    });
+                    
+                    onUpdated(() => {
+                        addLog(`组件已更新 (onUpdated) - 计数器: ${this.data.counter}`, 'updated');
+                    });
+                    
+                    onBeforeUnmount(() => {
+                        addLog('组件卸载前 (onBeforeUnmount)', 'unmounted');
+                    });
+                    
+                    onUnmounted(() => {
+                        addLog('组件已卸载 (onUnmounted)', 'unmounted');
+                    });
+                    
+                    return {};
+                },
+                methods: {
+                    updateMessage() {
+                        this.data.message = `更新的消息 ${Math.floor(Math.random() * 100)}`;
+                        this.data.timestamp = new Date().toLocaleTimeString();
+                    },
+                    incrementCounter() {
+                        this.data.counter++;
+                    }
+                },
+                render(createElem) {
+                    return createElem('div', {},
+                        createElem('h3', {}, '测试组件'),
+                        createElem('p', {}, this.data.message),
+                        createElem('p', {}, `计数器: ${this.data.counter}`),
+                        createElem('p', { style: 'font-size: 0.9em; color: #666;' }, `时间戳: ${this.data.timestamp}`),
+                        createElem('div', {},
+                            createElem('button', { '@click': 'updateMessage' }, '更新消息'),
+                            ' ',
+                            createElem('button', { '@click': 'incrementCounter' }, '增加计数')
+                        )
+                    );
+                }
+            });
+            
+            // 初始化组件并挂载到 DOM
+            componentInstance = TestComponent.init();
+            document.getElementById('component-app').appendChild(componentInstance.el);
+            document.getElementById('toggle-btn').textContent = '销毁组件';
+        }
+        
+        // 添加按钮事件监听器
+        document.getElementById('toggle-btn').addEventListener('click', createComponent);
+        document.getElementById('update-btn').addEventListener('click', () => {
+            if (componentInstance) {
+                componentInstance.data.counter++;
+                addLog('直接更新了计数器数据', 'before-update');
+            } else {
+                addLog('请先创建组件', 'warning');
+            }
+        });
+        
+        // 初始化应用
+        addLog('请点击"创建组件"按钮开始演示', 'mounted');
+    </script>
+</body>
+</html>

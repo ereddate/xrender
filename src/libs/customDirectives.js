@@ -173,7 +173,7 @@ const customDirectives = {
     bind(el, binding, vm) {
       const requiredPermission = binding.value;
       const userPermissions = vm.data.userPermissions || [];
-      if (!userPermissions.includes(requiredPermission)) {
+      if (!userPermissions.includes(requiredPermission) && el.parentNode) {
         el.parentNode.removeChild(el);
       }
     },
@@ -315,7 +315,9 @@ const customDirectives = {
       watcher.call(vm, vm.data[binding.value]);
     },
     unbind(el, binding, vm) {
-      delete vm.watch[binding.value];
+      if (vm && vm.watch && vm.watch[binding.value]) {
+        delete vm.watch[binding.value];
+      }
     },
   },
   clickOutside: {
@@ -342,7 +344,9 @@ const customDirectives = {
       el.resizeObserver = observer;
     },
     unbind(el) {
-      el.resizeObserver.disconnect();
+      if (el.resizeObserver) {
+        el.resizeObserver.disconnect();
+      }
     },
   },
   loading: {
@@ -360,7 +364,9 @@ const customDirectives = {
       el.style.pointerEvents = binding.value ? "none" : "auto";
     },
     unbind(el) {
-      el.removeChild(el.loadingDiv);
+      if (el.loadingDiv && el.contains(el.loadingDiv)) {
+        el.removeChild(el.loadingDiv);
+      }
     },
   },
   scrollTo: {
@@ -408,6 +414,8 @@ const customDirectives = {
   },
   passwordStrength: {
     bind(el, binding, vm) {
+      if (!el.parentNode) return;
+      
       const strengthElement = document.createElement("div");
       strengthElement.className = "password-strength";
       el.parentNode.insertBefore(strengthElement, el.nextSibling);
@@ -449,9 +457,11 @@ const customDirectives = {
       el.addEventListener("input", updateStrength);
     },
     unbind(el) {
-      const strengthElement = el.parentNode.querySelector(".password-strength");
-      if (strengthElement) {
-        strengthElement.remove();
+      if (el.parentNode) {
+        const strengthElement = el.parentNode.querySelector(".password-strength");
+        if (strengthElement) {
+          strengthElement.remove();
+        }
       }
     },
   },
@@ -525,9 +535,13 @@ const customDirectives = {
       };
 
       document.addEventListener("visibilitychange", handleVisibilityChange);
+      el._visibilityChangeHandler = handleVisibilityChange;
     },
-    unbind() {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    unbind(el) {
+      if (el._visibilityChangeHandler) {
+        document.removeEventListener("visibilitychange", el._visibilityChangeHandler);
+        el._visibilityChangeHandler = null;
+      }
     },
   },
   blur: {

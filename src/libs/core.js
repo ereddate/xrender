@@ -1,4 +1,5 @@
 import customDirectives from "./customDirectives.js";
+import { setCurrentInstance, getCurrentInstance, getGlobalWatchEffects } from "./reactivity.js";
 const doc = window.document;
 const createTextNode = function (text) {
   const textNode = doc.createTextNode(text);
@@ -929,6 +930,8 @@ export class Component {
     this.beforeDestroy = options?.beforeDestroy || (() => {});
     this.destroyed = options?.destroyed || (() => {});
     this.beforeUnmount = (options && options.beforeUnmount) || (() => {});
+    this.unmounted = (options && options.unmounted) || (() => {});
+    this.setup = (options && options.setup) || (() => ({}));
     // 共享$实例的属性和方法
     if (parent) {
       Object.keys(parent).forEach((key) => {
@@ -984,6 +987,12 @@ export class Component {
     this.mixins = options?.mixins || [];
     // 新增错误边界
     this.errorCaptured = options.errorCaptured || null;
+    // 新增上下文订阅管理
+    this._contextSubscriptions = new Set();
+    // 新增 effects 数组用于追踪依赖
+    this._effects = [];
+    // 新增 watchEffects 数组用于存储 watch 和 watchEffect
+    this._watchEffects = [];
     
     // 添加render方法，用于创建虚拟DOM
     if (options?.render) {
@@ -1008,9 +1017,28 @@ export class Component {
     // 生命周期钩子调用
     this.beforeCreate?.call(this);
     this.created?.call(this);
+    // 调用 setup() 函数（必须在 beforeMount 之前调用）
+    setCurrentInstance(this);
+    try {
+      const setupResult = this.options.setup?.call(this);
+      if (setupResult) {
+        // 将 setup 返回的值合并到组件实例
+        Object.assign(this, setupResult);
+      }
+    } finally {
+      setCurrentInstance(null);
+    }
+    // 调用 onBeforeMount 钩子（需要重新设置 currentInstance）
+    setCurrentInstance(this);
+    this._callLifecycleHooks('beforeMount');
+    setCurrentInstance(null);
     this.beforeMount?.call(this);
-    this.setup();
+    this._setupComponent();
     this.mounted?.call(this);
+    // 调用 onMounted 钩子（需要重新设置 currentInstance）
+    setCurrentInstance(this);
+    this._callLifecycleHooks('mounted');
+    setCurrentInstance(null);
     return this;
   }
 
@@ -1019,10 +1047,66 @@ export class Component {
     this._contextSubscriptions.forEach((unsubscribe) => unsubscribe());
     this._contextSubscriptions.clear();
   }
+
+  // 调用组合式 API 的生命周期钩子
+  _callLifecycleHooks(hookName) {
+    const hooksMap = {
+      'mounted': this._mountedHooks,
+      'updated': this._updatedHooks,
+      'unmounted': this._unmountedHooks,
+      'beforeMount': this._beforeMountHooks,
+      'beforeUpdate': this._beforeUpdateHooks,
+      'beforeUnmount': this._beforeUnmountHooks,
+      'errorCaptured': this._errorCapturedHooks,
+      'renderTracked': this._renderTrackedHooks,
+      'renderTriggered': this._renderTriggeredHooks,
+      'activated': this._activatedHooks,
+      'deactivated': this._deactivatedHooks
+    };
+
+    const hooks = hooksMap[hookName];
+    if (hooks && hooks.length > 0) {
+      hooks.forEach(hook => {
+        try {
+          hook();
+        } catch (error) {
+          console.error(`[XRender] Error in ${hookName} hook:`, error);
+          if (this.errorCaptured) {
+            this.errorCaptured(error);
+          }
+        }
+      });
+    }
+  }
+
+  // 清理 watchEffects
+  _cleanupWatchEffects() {
+    if (this._watchEffects) {
+      this._watchEffects = [];
+    }
+    if (this._postWatchEffects) {
+      this._postWatchEffects = [];
+    }
+    if (this._syncWatchEffects) {
+      this._syncWatchEffects = [];
+    }
+  }
   destroy() {
     this.beforeDestroy?.call(this);
+    // 调用 onBeforeUnmount 钩子（需要设置 currentInstance）
+    setCurrentInstance(this);
+    this._callLifecycleHooks('beforeUnmount');
+    setCurrentInstance(null);
+    this.beforeUnmount?.call(this);
     this.unmount();
-    this.destroyed?.call(this); // 在销毁之后调用
+    this.destroyed?.call(this);
+    this.unmounted?.call(this);
+    // 调用 onUnmounted 钩子（需要设置 currentInstance）
+    setCurrentInstance(this);
+    this._callLifecycleHooks('unmounted');
+    setCurrentInstance(null);
+    // 清理 watchEffects
+    this._cleanupWatchEffects();
   }
   // 新增：捕获错误
   captureError(error) {
@@ -1096,20 +1180,23 @@ export class Component {
     this._updateQueue.push(callback);
     if (!this._isUpdating) {
       this._isUpdating = true;
-      requestAnimationFrame(() => {
-        const fragment = doc.createDocumentFragment(); // 创建 DocumentFragment
-        this._updateQueue.forEach((cb) => cb(fragment));
-        const isNodeInFragment = function (fragment, node) {
-          return Array.from(fragment.childNodes).some(
-            (child) => child === node || child.contains(node)
-          );
-        };
-        if (!isNodeInFragment(fragment, this.el)) {
-          this.el.appendChild(fragment); // 一次性插入所有更新
-        }
-        this._updateQueue = [];
-        this._isUpdating = false;
-      });
+      
+      // 直接执行更新，而不是使用 requestAnimationFrame
+      const fragment = doc.createDocumentFragment(); // 创建 DocumentFragment
+      this._updateQueue.forEach((cb) => cb(fragment));
+      const isNodeInFragment = function (fragment, node) {
+        return Array.from(fragment.childNodes).some(
+          (child) => child === node || child.contains(node)
+        );
+      };
+      if (!isNodeInFragment(fragment, this.el)) {
+        this.el.appendChild(fragment); // 一次性插入所有更新
+      }
+      this._updateQueue = [];
+      this._isUpdating = false;
+      
+      // 触发 nextTick 回调
+      XRender.nextTick(() => {});
     }
   }
 
@@ -1299,6 +1386,32 @@ export class Component {
           value: function (...args) {
             const oldVal = [...this];
             const result = original.apply(this, args);
+            
+            if (vm._watchEffects && vm._watchEffects.length > 0) {
+              vm._watchEffects.forEach(effect => {
+                if (typeof effect === 'function') {
+                  try {
+                    effect();
+                  } catch (error) {
+                    console.error('[observe] Error in watchEffect:', error);
+                  }
+                }
+              });
+            }
+            
+            // Also trigger global watch effects
+            if (typeof getGlobalWatchEffects !== 'undefined') {
+              getGlobalWatchEffects().forEach(effect => {
+                if (typeof effect === 'function') {
+                  try {
+                    effect();
+                  } catch (error) {
+                    console.error('[observe] Error in global watchEffect:', error);
+                  }
+                }
+              });
+            }
+            
             vm.update();
             vm.triggerWatch(method, this, oldVal);
             vm._triggerDeepWatchers();
@@ -1365,6 +1478,31 @@ export class Component {
             });
           }
           
+          if (vm._watchEffects && vm._watchEffects.length > 0) {
+            vm._watchEffects.forEach(effect => {
+              if (typeof effect === 'function') {
+                try {
+                  effect();
+                } catch (error) {
+                  console.error('[observe] Error in watchEffect:', error);
+                }
+              }
+            });
+          }
+          
+          // Also trigger global watch effects
+          if (typeof getGlobalWatchEffects !== 'undefined') {
+            getGlobalWatchEffects().forEach(effect => {
+              if (typeof effect === 'function') {
+                try {
+                  effect();
+                } catch (error) {
+                  console.error('[observe] Error in global watchEffect:', error);
+                }
+              }
+            });
+          }
+          
           vm.update();
           
           if (vm && typeof vm._triggerDeepWatchers === 'function') {
@@ -1379,6 +1517,31 @@ export class Component {
         const result = Reflect.deleteProperty(target, key);
         // 如果删除成功，触发更新
         if (result && oldVal !== undefined) {
+          if (vm._watchEffects && vm._watchEffects.length > 0) {
+            vm._watchEffects.forEach(effect => {
+              if (typeof effect === 'function') {
+                try {
+                  effect();
+                } catch (error) {
+                  console.error('[observe] Error in watchEffect:', error);
+                }
+              }
+            });
+          }
+          
+          // Also trigger global watch effects
+          if (typeof getGlobalWatchEffects !== 'undefined') {
+            getGlobalWatchEffects().forEach(effect => {
+              if (typeof effect === 'function') {
+                try {
+                  effect();
+                } catch (error) {
+                  console.error('[observe] Error in global watchEffect:', error);
+                }
+              }
+            });
+          }
+          
           vm.update();
           vm.triggerWatch(key, undefined, oldVal);
           vm._triggerDeepWatchers();
@@ -1580,6 +1743,10 @@ export class Component {
         this.cache(this._cacheKey);
       }
       this.batchUpdate((fragment) => {
+        // 调用 onBeforeUpdate 钩子（需要设置 currentInstance）
+        setCurrentInstance(that);
+        that._callLifecycleHooks('beforeUpdate');
+        setCurrentInstance(null);
         that.beforeUpdate?.call(that);
         if (that.isMounted) {
           // 获取新的虚拟DOM或真实DOM
@@ -1621,6 +1788,10 @@ export class Component {
         }
         XRender.nextTick(() => {
           that.updated?.call(that);
+          // 调用 onUpdated 钩子（需要设置 currentInstance）
+          setCurrentInstance(that);
+          that._callLifecycleHooks('updated');
+          setCurrentInstance(null);
         });
       });
     } catch (e) {
@@ -1720,7 +1891,7 @@ export class Component {
       this._cleanupContextSubscriptions(); // 清理上下文订阅
     }
   }
-  setup() {
+  _setupComponent() {
     const vm = this;
     // 使用虚拟DOM创建元素
     if (this.render) {
@@ -1934,7 +2105,9 @@ const XRender = {
         const copies = that._nextTickCallbacks.slice(0);
         that._nextTickCallbacks.length = 0;
         for (let i = 0; i < copies.length; i++) {
-          copies[i]();
+          if (typeof copies[i] === 'function') {
+            copies[i]();
+          }
         }
       });
     }
@@ -2027,6 +2200,9 @@ const XRender = {
 Object.entries(customDirectives).forEach(([name, directive]) => {
   XRender.directive(name, directive);
 });
+
+// 导出 Composition API
+export * from './reactivity.js';
 
 window.$ = XRender;
 
