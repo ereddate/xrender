@@ -14,7 +14,8 @@ XRender 是一个轻量级的前端框架，专注于组件化开发和数据驱
 - **SSR 支持**：支持服务器端渲染（SSR）。
 - **路由支持**：支持路由管理和导航。
 - **状态管理**：支持状态管理。
-- **响应式系统**：支持响应式数据和计算属性。
+- **响应式系统**：支持响应式数据、计算属性和深度监听。
+- **Watcher 系统**：支持数据监听和响应式更新，包括深度监听和立即执行。
 - **国际化支持**：支持国际化和多语言支持。
 - **AJAX 支持**：支持 AJAX 请求和数据获取。
 - **MOCK 支持**：支持模拟数据和测试环境。
@@ -198,6 +199,102 @@ const App = $.component('App', {
   },
   render(createElem) {
     return createElem('div', {}, `Welcome, {{username}}!`);
+  }
+});
+```
+
+## 响应式系统
+XRender 提供了强大的响应式系统，支持数据监听、计算属性和深度监听。
+
+### 计算属性
+计算属性基于依赖自动计算并缓存结果，只有在依赖项变化时才会重新计算：
+```javascript
+const App = $.component('App', {
+  data() {
+    return {
+      firstName: 'John',
+      lastName: 'Doe'
+    };
+  },
+  computed: {
+    fullName() {
+      return `${this.data.firstName} ${this.data.lastName}`;
+    }
+  },
+  render(createElem) {
+    return createElem('div', {}, `Full Name: {{fullName}}`);
+  }
+});
+```
+
+### Watcher 监听
+Watcher 允许监听数据的变化并执行相应的操作：
+```javascript
+const App = $.component('App', {
+  data() {
+    return {
+      count: 0
+    };
+  },
+  watch: {
+    count(newVal, oldVal) {
+      console.log(`Count changed from ${oldVal} to ${newVal}`);
+    }
+  },
+  render(createElem) {
+    return createElem('div', {}, `Count: {{count}}`);
+  }
+});
+```
+
+### 深度监听
+深度监听可以监听嵌套对象内部的变化：
+```javascript
+const App = $.component('App', {
+  data() {
+    return {
+      user: {
+        name: 'John',
+        age: 30,
+        address: {
+          city: 'New York'
+        }
+      }
+    };
+  },
+  watch: {
+    user: {
+      handler(newVal, oldVal) {
+        console.log('User changed:', newVal);
+      },
+      deep: true
+    }
+  },
+  render(createElem) {
+    return createElem('div', {}, `Name: {{user.name}}`);
+  }
+});
+```
+
+### 立即执行监听器
+使用 `immediate` 选项可以在监听器创建时立即执行：
+```javascript
+const App = $.component('App', {
+  data() {
+    return {
+      message: 'Hello'
+    };
+  },
+  watch: {
+    message: {
+      handler(newVal) {
+        console.log('Message:', newVal);
+      },
+      immediate: true
+    }
+  },
+  render(createElem) {
+    return createElem('div', {}, `Message: {{message}}`);
   }
 });
 ```

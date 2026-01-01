@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XRender 国际化示例</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        .header p {
+            opacity: 0.9;
+        }
+        .language-switcher {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .lang-btn {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .lang-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .lang-btn.active {
+            background: white;
+            color: #667eea;
+            border-color: white;
+        }
+        .content {
+            padding: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 22px;
+        }
+        .card {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+        .card h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        .card p {
+            color: #666;
+            line-height: 1.6;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .feature-item {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            text-align: center;
+        }
+        .feature-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        .feature-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .feature-desc {
+            font-size: 14px;
+            color: #999;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+        .demo-form {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .message-box {
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            display: none;
+        }
+        .message-box.show {
+            display: block;
+        }
+        .message-box.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .message-box.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script type="module">
+        import XRender from '../src/libs/core.js';
+
+        const i18n = {
+            messages: {
+                zh: {
+                    title: 'XRender 国际化示例',
+                    subtitle: '体验多语言支持功能',
+                    switchLanguage: '切换语言',
+                    features: {
+                        title: '主要特性',
+                        subtitle: 'XRender 提供了强大的国际化支持',
+                        items: [
+                            { icon: '🌍', title: '多语言支持', desc: '支持多种语言切换' },
+                            { icon: '📦', title: '轻量级', desc: '核心库体积小' },
+                            { icon: '⚡', title: '高性能', desc: '快速响应变化' },
+                            { icon: '🔧', title: '易扩展', desc: '灵活的插件机制' }
+                        ]
+                    },
+                    about: {
+                        title: '关于 XRender',
+                        description: 'XRender 是一个轻量级、高性能的前端框架，提供了完整的国际化支持。',
+                        stats: {
+                            users: '用户数',
+                            downloads: '下载量',
+                            stars: 'Star 数'
+                        }
+                    },
+                    demo: {
+                        title: '演示表单',
+                        name: '姓名',
+                        email: '邮箱',
+                        submit: '提交',
+                        success: '提交成功！',
+                        error: '请填写所有字段'
+                    }
+                },
+                en: {
+                    title: 'XRender i18n Example',
+                    subtitle: 'Experience multi-language support',
+                    switchLanguage: 'Switch Language',
+                    features: {
+                        title: 'Key Features',
+                        subtitle: 'XRender provides powerful internationalization support',
+                        items: [
+                            { icon: '🌍', title: 'Multi-language', desc: 'Support multiple languages' },
+                            { icon: '📦', title: 'Lightweight', desc: 'Small core library size' },
+                            { icon: '⚡', title: 'High Performance', desc: 'Fast response to changes' },
+                            { icon: '🔧', title: 'Extensible', desc: 'Flexible plugin mechanism' }
+                        ]
+                    },
+                    about: {
+                        title: 'About XRender',
+                        description: 'XRender is a lightweight, high-performance frontend framework with complete internationalization support.',
+                        stats: {
+                            users: 'Users',
+                            downloads: 'Downloads',
+                            stars: 'Stars'
+                        }
+                    },
+                    demo: {
+                        title: 'Demo Form',
+                        name: 'Name',
+                        email: 'Email',
+                        submit: 'Submit',
+                        success: 'Submitted successfully!',
+                        error: 'Please fill in all fields'
+                    }
+                },
+                ja: {
+                    title: 'XRender 国際化の例',
+                    subtitle: '多言語サポートを体験',
+                    switchLanguage: '言語を切り替え',
+                    features: {
+                        title: '主な特徴',
+                        subtitle: 'XRenderは強力な国際化サポートを提供します',
+                        items: [
+                            { icon: '🌍', title: '多言語対応', desc: '複数の言語をサポート' },
+                            { icon: '📦', title: '軽量', desc: 'コアライブラリが小さい' },
+                            { icon: '⚡', title: '高性能', desc: '高速な応答' },
+                            { icon: '🔧', title: '拡張可能', desc: '柔軟なプラグイン機構' }
+                        ]
+                    },
+                    about: {
+                        title: 'XRenderについて',
+                        description: 'XRenderは軽量で高性能なフロントエンドフレームワークで、完全な国際化サポートを提供します。',
+                        stats: {
+                            users: 'ユーザー数',
+                            downloads: 'ダウンロード数',
+                            stars: 'スター数'
+                        }
+                    },
+                    demo: {
+                        title: 'デモフォーム',
+                        name: '名前',
+                        email: 'メール',
+                        submit: '送信',
+                        success: '送信成功！',
+                        error: 'すべての項目を入力してください'
+                    }
+                }
+            },
+            currentLang: 'zh',
+            t(key) {
+                const keys = key.split('.');
+                let value = this.messages[this.currentLang];
+                for (const k of keys) {
+                    value = value?.[k];
+                }
+                return value || key;
+            }
+        };
+
+        const I18nApp = XRender.component('I18nApp', {
+            data() {
+                return {
+                    currentLang: 'zh',
+                    formData: {
+                        name: '',
+                        email: ''
+                    },
+                    showMessage: false,
+                    messageType: 'success',
+                    messageText: ''
+                };
+            },
+            computed: {
+                t() {
+                    return (key) => i18n.t(key);
+                },
+                features() {
+                    return i18n.messages[this.data.currentLang].features.items;
+                }
+            },
+            methods: {
+                setLanguage(lang) {
+                    this.data.currentLang = lang;
+                    i18n.currentLang = lang;
+                },
+                handleSubmit() {
+                    if (!this.data.formData.name || !this.data.formData.email) {
+                        this.data.messageType = 'error';
+                        this.data.messageText = this.t('demo.error');
+                    } else {
+                        this.data.messageType = 'success';
+                        this.data.messageText = this.t('demo.success');
+                    }
+                    this.data.showMessage = true;
+                    setTimeout(() => {
+                        this.data.showMessage = false;
+                    }, 3000);
+                }
+            },
+            render(createElem) {
+                const t = this.t;
+                const features = this.features;
+
+                return createElem('div', { class: 'container' },
+                    createElem('div', { class: 'header' },
+                        createElem('h1', {}, t('title')),
+                        createElem('p', {}, t('subtitle')),
+                        createElem('div', { class: 'language-switcher' },
+                            createElem('button', {
+                                class: `lang-btn ${this.data.currentLang === 'zh' ? 'active' : ''}`,
+                                '@click': () => this.setLanguage('zh')
+                            }, '中文'),
+                            createElem('button', {
+                                class: `lang-btn ${this.data.currentLang === 'en' ? 'active' : ''}`,
+                                '@click': () => this.setLanguage('en')
+                            }, 'English'),
+                            createElem('button', {
+                                class: `lang-btn ${this.data.currentLang === 'ja' ? 'active' : ''}`,
+                                '@click': () => this.setLanguage('ja')
+                            }, '日本語')
+                        )
+                    ),
+                    createElem('div', { class: 'content' },
+                        createElem('div', { class: 'section' },
+                            createElem('h2', {}, t('features.title')),
+                            createElem('div', { class: 'card' },
+                                createElem('h3', {}, t('features.subtitle'))
+                            ),
+                            createElem('div', { class: 'feature-grid' },
+                                features.map(feature =>
+                                    createElem('div', { class: 'feature-item' },
+                                        createElem('div', { class: 'feature-icon' }, feature.icon),
+                                        createElem('div', { class: 'feature-title' }, feature.title),
+                                        createElem('div', { class: 'feature-desc' }, feature.desc)
+                                    )
+                                )
+                            )
+                        ),
+                        createElem('div', { class: 'section' },
+                            createElem('h2', {}, t('about.title')),
+                            createElem('div', { class: 'card' },
+                                createElem('p', {}, t('about.description'))
+                            ),
+                            createElem('div', { class: 'stats' },
+                                createElem('div', { class: 'stat-item' },
+                                    createElem('div', { class: 'stat-value' }, '10K+'),
+                                    createElem('div', { class: 'stat-label' }, t('about.stats.users'))
+                                ),
+                                createElem('div', { class: 'stat-item' },
+                                    createElem('div', { class: 'stat-value' }, '50K+'),
+                                    createElem('div', { class: 'stat-label' }, t('about.stats.downloads'))
+                                ),
+                                createElem('div', { class: 'stat-item' },
+                                    createElem('div', { class: 'stat-value' }, '1K+'),
+                                    createElem('div', { class: 'stat-label' }, t('about.stats.stars'))
+                                )
+                            )
+                        ),
+                        createElem('div', { class: 'section' },
+                            createElem('h2', {}, t('demo.title')),
+                            createElem('div', { class: 'demo-form' },
+                                createElem('div', { class: 'form-group' },
+                                    createElem('label', {}, t('demo.name')),
+                                    createElem('input', {
+                                        type: 'text',
+                                        placeholder: t('demo.name'),
+                                        value: this.data.formData.name,
+                                        '@input': (e) => this.data.formData.name = e.target.value
+                                    })
+                                ),
+                                createElem('div', { class: 'form-group' },
+                                    createElem('label', {}, t('demo.email')),
+                                    createElem('input', {
+                                        type: 'email',
+                                        placeholder: t('demo.email'),
+                                        value: this.data.formData.email,
+                                        '@input': (e) => this.data.formData.email = e.target.value
+                                    })
+                                ),
+                                createElem('button', { class: 'button', '@click': 'handleSubmit' }, t('demo.submit')),
+                                createElem('div', {
+                                    class: `message-box ${this.data.messageType} ${this.data.showMessage ? 'show' : ''}`
+                                }, this.data.messageText)
+                            )
+                        )
+                    )
+                );
+            }
+        });
+
+        XRender.createApp({ App: I18nApp }).$mount('#app');
+        console.log('国际化示例应用已加载');
+    </script>
+</body>
+</html>

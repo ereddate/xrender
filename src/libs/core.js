@@ -1170,22 +1170,113 @@ export class Component {
   }
 
   initComputed() {
+    this._computedCache = {};
+    this._computedDeps = {};
+    
     Object.entries(this.computed).forEach(([key, fn]) => {
+      let lastValue = undefined;
+      let hasCached = false;
+      
       Object.defineProperty(this.data, key, {
         get: () => {
-          // 建立依赖追踪
-          this.currentDep = key;
           const value = fn.call(this);
-          this.currentDep = null;
-          return value;
+          
+          if (hasCached && this._computedCache[key] !== value) {
+            const oldValue = this._computedCache[key];
+            this._computedCache[key] = value;
+            this.triggerWatch(key, value, oldValue);
+          } else if (!hasCached) {
+            this._computedCache[key] = value;
+            hasCached = true;
+          }
+          
+          return this._computedCache[key];
         },
         enumerable: true,
+        configurable: true
       });
     });
   }
+  
+  _clearComputedCache(key) {
+    if (key) {
+      delete this._computedCache[key];
+    } else {
+      this._computedCache = {};
+    }
+  }
+  
+  _getNestedValue(obj, path) {
+    const keys = path.split('.');
+    let result = obj;
+    for (const key of keys) {
+      if (result && typeof result === 'object') {
+        result = result[key];
+      } else {
+        return undefined;
+      }
+    }
+    return result;
+  }
+  
+  _triggerDeepWatchers(changedKey = null) {
+    if (!this._watchers) return;
+
+    this._watchers.forEach(watcher => {
+      if (!watcher.deep) return;
+
+      const shouldCheck = !changedKey || 
+        changedKey === watcher.key || 
+        changedKey.startsWith(watcher.key + '.');
+
+      if (!shouldCheck) return;
+
+      const value = this._getNestedValue(this.data, watcher.key);
+      const hasChanged = this._deepEquals(value, watcher._lastDeepValue) === false;
+
+      if (hasChanged) {
+        const oldValue = watcher._lastDeepValue;
+        watcher._lastDeepValue = this._deepClone(value);
+        this._executeWatcher(watcher, value, oldValue);
+      }
+    });
+  }
+
+  _deepEquals(a, b) {
+    if (a === b) return true;
+    if (a == null || b == null) return false;
+    if (typeof a !== typeof b) return false;
+    if (typeof a !== 'object') return false;
+    if (Array.isArray(a) !== Array.isArray(b)) return false;
+
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+
+    if (keysA.length !== keysB.length) return false;
+
+    for (const key of keysA) {
+      if (!keysB.includes(key)) return false;
+      if (!this._deepEquals(a[key], b[key])) return false;
+    }
+
+    return true;
+  }
+
+  _deepClone(obj) {
+    if (obj == null) return null;
+    if (typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(item => this._deepClone(item));
+    
+    const cloned = {};
+    const keys = Object.keys(obj);
+    for (const key of keys) {
+      cloned[key] = this._deepClone(obj[key]);
+    }
+    return cloned;
+  }
 
   // 数据响应式实现
-  observe(data) {
+  observe(data, parentPath = '') {
     if (data && data.__observed__) {
       return data;
     }
@@ -1210,6 +1301,7 @@ export class Component {
             const result = original.apply(this, args);
             vm.update();
             vm.triggerWatch(method, this, oldVal);
+            vm._triggerDeepWatchers();
             return result;
           },
           enumerable: false,
@@ -1219,27 +1311,66 @@ export class Component {
       });
     }
 
+    // 递归地为嵌套对象创建 Proxy
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const keys = Object.keys(data);
+      for (const key of keys) {
+        const value = data[key];
+        if (typeof value === 'object' && value !== null && !value.__observed__) {
+          const currentPath = parentPath ? `${parentPath}.${key}` : key;
+          data[key] = vm.observe(value, currentPath);
+        }
+      }
+    }
+
     const handler = {
       get(target, key) {
         const value = Reflect.get(target, key);
-        // 深度监听对象
+        
+        if (vm._effects && vm._effects.length > 0) {
+          vm._effects.forEach(effect => {
+            if (effect.active) {
+              effect.deps.add(key);
+            }
+          });
+        }
+        
         if (
           typeof value === "object" &&
           value !== null &&
           !value.__observed__
         ) {
-          return vm.observe(value);
+          const currentPath = parentPath ? `${parentPath}.${key}` : key;
+          return vm.observe(value, currentPath);
         }
         return value;
       },
       set(target, key, value) {
         const oldVal = Reflect.get(target, key);
         const result = Reflect.set(target, key, value);
-        // 触发更新
         if (oldVal !== value) {
           XRender.queueUpdate(vm, key, value, oldVal);
-          /* vm.update();
-          vm.triggerWatch(key, value, oldVal); */
+          vm._clearComputedCache();
+          
+          if (vm._effects && vm._effects.length > 0) {
+            vm._effects.forEach(effect => {
+              if (effect.active && effect.deps.has(key)) {
+                if (effect.scheduler) {
+                  effect.scheduler();
+                } else {
+                  effect.fn.call(vm);
+                  effect.hasRun = true;
+                }
+              }
+            });
+          }
+          
+          vm.update();
+          
+          if (vm && typeof vm._triggerDeepWatchers === 'function') {
+            const fullPath = parentPath ? `${parentPath}.${key}` : key;
+            vm._triggerDeepWatchers(fullPath);
+          }
         }
         return result;
       },
@@ -1250,6 +1381,7 @@ export class Component {
         if (result && oldVal !== undefined) {
           vm.update();
           vm.triggerWatch(key, undefined, oldVal);
+          vm._triggerDeepWatchers();
         }
         return result;
       },
@@ -1274,18 +1406,167 @@ export class Component {
 
   // 观察者模式实现
   initWatcher() {
+    this._watchers = [];
+    
     if (this.watch) {
-      Object.entries(this.watch).forEach(([key, fn]) => {
-        this.triggerWatch(key, this.data[key], undefined);
+      Object.entries(this.watch).forEach(([key, handler]) => {
+        let watcher = null;
+        
+        if (typeof handler === 'function') {
+          watcher = {
+            key,
+            handler,
+            deep: false,
+            immediate: false,
+            lazy: false
+          };
+        } else if (typeof handler === 'object') {
+          watcher = {
+            key,
+            handler: handler.handler || handler.callback,
+            deep: handler.deep || false,
+            immediate: handler.immediate || false,
+            lazy: handler.lazy || false
+          };
+        }
+        
+        if (watcher && watcher.handler) {
+          this._watchers.push(watcher);
+
+          if (watcher.deep) {
+            const value = this._getNestedValue(this.data, watcher.key);
+            watcher._lastDeepValue = this._deepClone(value);
+          }
+
+          if (watcher.immediate) {
+            this._executeWatcher(watcher, this.data[watcher.key], undefined);
+          }
+        }
       });
+    }
+  }
+
+  // 执行监听器
+  _executeWatcher(watcher, newVal, oldVal) {
+    try {
+      if (typeof watcher.handler === 'function') {
+        // 确保this指向组件实例
+        const componentInstance = this;
+        watcher.handler.call(componentInstance, newVal, oldVal);
+      }
+    } catch (error) {
+      console.error(`[XRender Watch] Error in watcher for "${watcher.key}":`, error);
     }
   }
 
   // 触发监听回调
   triggerWatch(key, newVal, oldVal) {
-    if (this.watch?.[key]) {
-      this.watch[key].call(this, newVal, oldVal);
+    if (this._watchers) {
+      this._watchers.forEach(watcher => {
+        if (watcher.key === key) {
+          this._executeWatcher(watcher, newVal, oldVal);
+        }
+      });
     }
+  }
+  
+  // 新增 $watch 方法，支持动态添加监听器
+  $watch(keyOrFn, handler, options = {}) {
+    const watcher = {
+      key: typeof keyOrFn === 'function' ? null : keyOrFn,
+      getter: typeof keyOrFn === 'function' ? keyOrFn : null,
+      handler,
+      deep: options.deep || false,
+      immediate: options.immediate || false,
+      lazy: options.lazy || false
+    };
+    
+    if (!this._watchers) {
+      this._watchers = [];
+    }
+    
+    this._watchers.push(watcher);
+    
+    if (watcher.immediate) {
+      const value = watcher.getter ? watcher.getter.call(this) : this.data[watcher.key];
+      this._executeWatcher(watcher, value, undefined);
+    }
+    
+    return () => {
+      const index = this._watchers.indexOf(watcher);
+      if (index > -1) {
+        this._watchers.splice(index, 1);
+      }
+    };
+  }
+  
+  // 新增 watchEffect 功能，自动追踪依赖
+  $watchEffect(effect, options = {}) {
+    if (!this._effects) {
+      this._effects = [];
+    }
+    
+    const effectRunner = {
+      fn: effect,
+      deps: new Set(),
+      active: true,
+      scheduler: options.scheduler || null,
+      lazy: options.lazy || false,
+      hasRun: false
+    };
+    
+    const runner = () => {
+      if (!effectRunner.active) return;
+      
+      try {
+        effectRunner.deps.clear();
+        const result = effectRunner.fn.call(this);
+        effectRunner.hasRun = true;
+        return result;
+      } catch (error) {
+        console.error('[XRender watchEffect] Error:', error);
+      }
+    };
+    
+    this._effects.push(effectRunner);
+    
+    const stop = () => {
+      effectRunner.active = false;
+      const index = this._effects.indexOf(effectRunner);
+      if (index > -1) {
+        this._effects.splice(index, 1);
+      }
+    };
+    
+    if (!effectRunner.lazy) {
+      runner();
+    } else {
+      // 对于lazy watchEffect，仍然需要追踪依赖但不执行
+      try {
+        effectRunner.deps.clear();
+        effectRunner.fn.call(this);
+      } catch (error) {
+        console.error('[XRender watchEffect] Error during dependency tracking:', error);
+      }
+    }
+    
+    return stop;
+  }
+  
+  // 新增 watchPostEffect，在 DOM 更新后执行
+  $watchPostEffect(effect) {
+    return this.$watchEffect(effect, {
+      scheduler: () => {
+        Promise.resolve().then(effect);
+      }
+    });
+  }
+  
+  // 新增 watchSyncEffect，同步执行
+  $watchSyncEffect(effect) {
+    return this.$watchEffect(effect, {
+      scheduler: effect
+    });
   }
 
   // 新增更新机制

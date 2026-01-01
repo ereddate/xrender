@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XRender 路由示例</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 600px;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        .nav {
+            background: #f8f9fa;
+            padding: 15px 30px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .nav-list {
+            display: flex;
+            gap: 10px;
+            list-style: none;
+            flex-wrap: wrap;
+        }
+        .nav-item a {
+            display: block;
+            padding: 10px 20px;
+            text-decoration: none;
+            color: #666;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .nav-item a:hover {
+            background: #e0e0e0;
+            color: #333;
+        }
+        .nav-item a.active {
+            background: #667eea;
+            color: white;
+        }
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+        }
+        .page {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .page h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        .page p {
+            color: #666;
+            line-height: 1.8;
+            margin-bottom: 15px;
+        }
+        .card {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+        .card h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        .card p {
+            color: #666;
+            margin-bottom: 0;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+        .button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .button-secondary {
+            background: #f5f5f5;
+            color: #666;
+        }
+        .button-secondary:hover {
+            background: #e0e0e0;
+        }
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        .feature-list li {
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            background: #f9f9f9;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .feature-list li::before {
+            content: '✓';
+            color: #667eea;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .not-found {
+            text-align: center;
+            padding: 60px 20px;
+        }
+        .not-found h2 {
+            font-size: 48px;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+        .not-found p {
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+        .demo-section {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .demo-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .demo-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .demo-item:last-child {
+            margin-bottom: 0;
+        }
+        .demo-item-info {
+            flex: 1;
+        }
+        .demo-item-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        .demo-item-desc {
+            font-size: 14px;
+            color: #999;
+        }
+        .demo-item-action {
+            margin-left: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script type="module">
+        import XRender from '../src/libs/core.js';
+        import Router from '../src/libs/router/entry.js';
+
+        const HomePage = XRender.component('HomePage', {
+            data() {
+                return {
+                    title: 'XRender 路由示例',
+                    description: '这是一个展示 XRender 路由功能的示例应用',
+                    features: [
+                        '声明式路由配置',
+                        '动态路由参数',
+                        '嵌套路由支持',
+                        '路由守卫功能',
+                        '编程式导航',
+                        '路由过渡动画'
+                    ]
+                };
+            },
+            methods: {
+                navigateTo(path) {
+                    this.$router.push(path);
+                }
+            },
+            render(createElem) {
+                return createElem('div', { class: 'page' },
+                    createElem('h2', {}, '欢迎来到 XRender 路由示例'),
+                    createElem('p', {}, this.data.description),
+                    createElem('div', { class: 'card' },
+                        createElem('h3', {}, '快速开始'),
+                        createElem('p', {}, '点击上方导航栏中的链接，体验 XRender 的路由功能。每个页面都展示了不同的路由特性。')
+                    ),
+                    createElem('div', { class: 'card' },
+                        createElem('h3', {}, '主要特性'),
+                        createElem('ul', { class: 'feature-list' },
+                            this.data.features.map(feature =>
+                                createElem('li', {}, feature)
+                            )
+                        )
+                    ),
+                    createElem('div', { class: 'demo-section' },
+                        createElem('h3', {}, '快速导航'),
+                        createElem('div', { class: 'demo-item' },
+                            createElem('div', { class: 'demo-item-info' },
+                                createElem('div', { class: 'demo-item-title' }, '用户管理'),
+                                createElem('div', { class: 'demo-item-desc' }, '查看用户列表和详细信息')
+                            ),
+                            createElem('div', { class: 'demo-item-action' },
+                                createElem('button', { class: 'button', '@click': () => this.navigateTo('/users') }, '前往')
+                            )
+                        ),
+                        createElem('div', { class: 'demo-item' },
+                            createElem('div', { class: 'demo-item-info' },
+                                createElem('div', { class: 'demo-item-title' }, '产品中心'),
+                                createElem('div', { class: 'demo-item-desc' }, '浏览产品列表和详情')
+                            ),
+                            createElem('div', { class: 'demo-item-action' },
+                                createElem('button', { class: 'button', '@click': () => this.navigateTo('/products') }, '前往')
+                            )
+                        ),
+                        createElem('div', { class: 'demo-item' },
+                            createElem('div', { class: 'demo-item-info' },
+                                createElem('div', { class: 'demo-item-title' }, '关于我们'),
+                                createElem('div', { class: 'demo-item-desc' }, '了解 XRender 框架')
+                            ),
+                            createElem('div', { class: 'demo-item-action' },
+                                createElem('button', { class: 'button', '@click': () => this.navigateTo('/about') }, '前往')
+                            )
+                        )
+                    )
+                );
+            }
+        });
+
+        const UsersPage = XRender.component('UsersPage', {
+            data() {
+                return {
+                    users: [
+                        { id: 1, name: '张三', email: 'zhangsan@example.com', role: '管理员' },
+                        { id: 2, name: '李四', email: 'lisi@example.com', role: '普通用户' },
+                        { id: 3, name: '王五', email: 'wangwu@example.com', role: '普通用户' }
+                    ]
+                };
+            },
+            methods: {
+                viewUser(id) {
+                    this.$router.push(`/users/${id}`);
+                }
+            },
+            render(createElem) {
+                return createElem('div', { class: 'page' },
+                    createElem('h2', {}, '用户管理'),
+                    createElem('p', {}, '这是用户管理页面，展示了如何使用路由和列表渲染。'),
+                    createElem('div', { class: 'demo-section' },
+                        createElem('h3', {}, '用户列表'),
+                        ...this.data.users.map(user =>
+                            createElem('div', { class: 'demo-item' },
+                                createElem('div', { class: 'demo-item-info' },
+                                    createElem('div', { class: 'demo-item-title' }, user.name),
+                                    createElem('div', { class: 'demo-item-desc' }, `${user.email} - ${user.role}`)
+                                ),
+                                createElem('div', { class: 'demo-item-action' },
+                                    createElem('button', {
+                                        class: 'button',
+                                        '@click': () => this.viewUser(user.id)
+                                    }, '查看详情')
+                                )
+                            )
+                        )
+                    )
+                );
+            }
+        });
+
+        const UserDetailPage = XRender.component('UserDetailPage', {
+            data() {
+                return {
+                    users: {
+                        1: { id: 1, name: '张三', email: 'zhangsan@example.com', role: '管理员', bio: '资深前端开发工程师，专注于 Web 技术研究。' },
+                        2: { id: 2, name: '李四', email: 'lisi@example.com', role: '普通用户', bio: '热爱编程，喜欢学习新技术。' },
+                        3: { id: 3, name: '王五', email: 'wangwu@example.com', role: '普通用户', bio: '全栈开发者，对后端技术也有深入研究。' }
+                    }
+                };
+            },
+            computed: {
+                user() {
+                    return this.data.users[this.$route.params.id];
+                }
+            },
+            methods: {
+                goBack() {
+                    this.$router.back();
+                }
+            },
+            render(createElem) {
+                const user = this.user;
+                
+                if (!user) {
+                    return createElem('div', { class: 'page' },
+                        createElem('h2', {}, '用户不存在'),
+                        createElem('p', {}, '找不到该用户信息。'),
+                        createElem('button', { class: 'button', '@click': 'goBack' }, '返回')
+                    );
+                }
+
+                return createElem('div', { class: 'page' },
+                    createElem('h2', {}, `${user.name} 的详细信息`),
+                    createElem('p', {}, '这是用户详情页面，展示了如何使用动态路由参数。'),
+                    createElem('div', { class: 'card' },
+                        createElem('h3', {}, '基本信息'),
+                        createElem('p', {}, `ID: ${user.id}`),
+                        createElem('p', {}, `姓名: ${user.name}`),
+                        createElem('p', {}, `邮箱: ${user.email}`),
+                        createElem('p', {}, `角色: ${user.role}`)
+                    ),
+                    createElem('div', { class: 'card' },
+                        createElem('h3', {}, '个人简介'),
+                        createElem('p', {}, user.bio)
+                    ),
+                    createElem('button', { class: 'button button-secondary', '@click': 'goBack' }, '返回列表')
+                );
+            }
+        });
+
+        const ProductsPage = XRender.component('ProductsPage', {
+            data() {
+                return {
+                    products: [
+                        { id: 1, name: 'XRender Pro', price: '¥999', description: '专业版，包含所有高级功能' },
+                        { id: 2, name: 'XRender Enterprise', price: '¥2999', description: '企业版，提供定制化服务' },
+                        { id: 3, name: 'XRender Free', price: '免费', description: '免费版，基础功能' }
+                    ]
+                };
+            },
+            methods: {
+                viewProduct(id) {
+                    this.$router.push(`/products/${id}`);
+                }
+            },
+            render(createElem) {
+                return createElem('div', { class: 'page' },
+                    createElem('h2', {}, '产品中心'),
+                    createElem('p', {}, '这是产品中心页面，展示了产品列表。'),
+                    createElem('div', { class: 'demo-section' },
+                        createElem('h3', {}, '产品列表'),
+                        ...this.data.products.map(product =>
+                            createElem('div', { class: 'demo-item' },
+                                createElem('div', { class: 'demo-item-info' },
+                                    createElem('div', { class: 'demo-item-title' }, `${product.name} - ${product.price}`),
+                                    createElem('div', { class: 'demo-item-desc' }, product.description)
+                                ),
+                                createElem('div', { class: 'demo-item-action' },
+                                    createElem('button', {
+                                        class: 'button',
+                                        '@click': () => this.viewProduct(product.id)
+                                    }, '查看详情')
+                                )
+                            )
+                        )
+                    )
+                );
+            }
+        });
+
+        const ProductDetailPage = XRender.component('ProductDetailPage', {
+            data() {
+                return {
+                    products: {
+                        1: { id: 1, name: 'XRender Pro', price: '¥999', description: '专业版，包含所有高级功能', features: ['响应式系统', '虚拟 DOM', '组件化开发', '路由管理', '状态管理'] },
+                        2: { id: 2, name: 'XRender Enterprise', price: '¥2999', description: '企业版，提供定制化服务', features: ['Pro 版所有功能', '定制化开发', '技术支持', '培训服务', 'SLA 保障'] },
+                        3: { id: 3, name: 'XRender Free', price: '免费', description: '免费版，基础功能', features: ['基础响应式', '组件化', '虚拟 DOM'] }
+                    }
+                };
+            },
+            computed: {
+                product() {
+                    return this.data.products[this.$route.params.id];
+                }
+            },
+            methods: {
+                goBack() {
+                    this.$router.back();
+                }
+            },
+            render(createElem) {
+                const product = this.product;
+                
+                if (!product) {
+                    return createElem('div', { class: 'page' },
+                        createElem('h2', {}, '产品不存在'),
+                        createElem('p', {}, '找不到该产品信息。'),
+                        createElem('button', { class: 'button', '@click': 'goBack' }, '返回')
+                    );
+                }
+
+                return createElem('div', { class: 'page' },
+                    createElem('h2', {}, product.name),
+                    createElem('p', {}, '这是产品详情页面，展示了如何使用动态路由参数。'),
+                    createElem('div', { class: 'card' },
+                        createElem('h3', {}, '产品信息'),
+                        createElem('p', {}, `价格: ${product.price}`),
+                        createElem('p', {}, `描述: ${product.description}`)
+                    ),
+                    createElem('div', { class: 'card' },
+                        createElem('h3', {}, '功能特性'),
+                        createElem('ul', { class: 'feature-list' },
+                            product.features.map(feature =>
+                                createElem('li', {}, feature)
+                            )
+                        )
+                    ),
+                    createElem('button', { class: 'button button-secondary', '@click': 'goBack' }, '返回列表')
+                );
+            }
+        });
+
+        const AboutPage = XRender.component('AboutPage', {
+            data() {
+                return {
+                    info: {
+                        name: 'XRender',
+                        version: '1.0.0',
+                        description: '一个轻量级、高性能的前端框架',
+                        features: [
+                            '轻量级：核心库只有几KB',
+                            '高性能：采用虚拟 DOM 技术',
+                            '易上手：简洁的 API 设计',
+                            '可扩展：支持插件机制',
+                            '类型安全：完整的 TypeScript 支持'
+                        ]
+                    }
+                };
+            },
+            render(createElem) {
+                return createElem('div', { class: 'page' },
+                    createElem('h2', {}, '关于 XRender'),
+                    createElem('p', {}, this.data.info.description),
+                    createElem('div', { class: 'card' },
+                        createElem('h3', {}, '版本信息'),
+                        createElem('p', {}, `框架名称: ${this.data.info.name}`),
+                        createElem('p', {}, `当前版本: ${this.data.info.version}`)
+                    ),
+                    createElem('div', { class: 'card' },
+                        createElem('h3', {}, '核心特性'),
+                        createElem('ul', { class: 'feature-list' },
+                            this.data.info.features.map(feature =>
+                                createElem('li', {}, feature)
+                            )
+                        )
+                    )
+                );
+            }
+        });
+
+        const NotFoundPage = XRender.component('NotFoundPage', {
+            methods: {
+                goHome() {
+                    this.$router.push('/');
+                }
+            },
+            render(createElem) {
+                return createElem('div', { class: 'page not-found' },
+                    createElem('h2', {}, '404'),
+                    createElem('p', {}, '抱歉，您访问的页面不存在。'),
+                    createElem('button', { class: 'button', '@click': 'goHome' }, '返回首页')
+                );
+            }
+        });
+
+        const App = XRender.component('App', {
+            data() {
+                return {
+                    currentPath: window.location.pathname
+                };
+            },
+            methods: {
+                isActive(path) {
+                    return this.data.currentPath === path;
+                }
+            },
+            watch: {
+                currentPath: {
+                    handler(newPath) {
+                        this.$router.push(newPath);
+                    }
+                }
+            },
+            render(createElem) {
+                return createElem('div', { class: 'container' },
+                    createElem('div', { class: 'header' },
+                        createElem('h1', {}, 'XRender 路由示例'),
+                        createElem('p', {}, '体验声明式路由和动态路由功能')
+                    ),
+                    createElem('nav', { class: 'nav' },
+                        createElem('ul', { class: 'nav-list' },
+                            createElem('li', { class: 'nav-item' },
+                                createElem('a', {
+                                    href: '/',
+                                    class: this.isActive('/') ? 'active' : '',
+                                    '@click': (e) => {
+                                        e.preventDefault();
+                                        this.$router.push('/');
+                                    }
+                                }, '首页')
+                            ),
+                            createElem('li', { class: 'nav-item' },
+                                createElem('a', {
+                                    href: '/users',
+                                    class: this.isActive('/users') ? 'active' : '',
+                                    '@click': (e) => {
+                                        e.preventDefault();
+                                        this.$router.push('/users');
+                                    }
+                                }, '用户管理')
+                            ),
+                            createElem('li', { class: 'nav-item' },
+                                createElem('a', {
+                                    href: '/products',
+                                    class: this.isActive('/products') ? 'active' : '',
+                                    '@click': (e) => {
+                                        e.preventDefault();
+                                        this.$router.push('/products');
+                                    }
+                                }, '产品中心')
+                            ),
+                            createElem('li', { class: 'nav-item' },
+                                createElem('a', {
+                                    href: '/about',
+                                    class: this.isActive('/about') ? 'active' : '',
+                                    '@click': (e) => {
+                                        e.preventDefault();
+                                        this.$router.push('/about');
+                                    }
+                                }, '关于我们')
+                            )
+                        )
+                    ),
+                    createElem('main', { class: 'main-content' },
+                        createElem('router-view')
+                    )
+                );
+            }
+        });
+
+        const router = new Router({
+            mode: 'history',
+            routes: [
+                { path: '/', component: HomePage },
+                { path: '/users', component: UsersPage },
+                { path: '/users/:id', component: UserDetailPage },
+                { path: '/products', component: ProductsPage },
+                { path: '/products/:id', component: ProductDetailPage },
+                { path: '/about', component: AboutPage },
+                { path: '*', component: NotFoundPage }
+            ]
+        });
+
+        XRender.createApp({ App, router }).$mount('#app');
+        console.log('路由示例应用已加载');
+    </script>
+</body>
+</html>
