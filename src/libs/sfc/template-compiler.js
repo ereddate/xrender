@@ -139,12 +139,48 @@ export class TemplateCompiler {
         },
         // 异步组件支持
         'suspense': (node, dir, context) => {
-          const fallback = dir.value || 'default';
+          const fallback = dir.arg || 'default';
           return `{
-            const AsyncComponent = () => Promise.resolve(${node});
-            return createElem('div', { class: 'suspense-container' }, [
-              createElem('div', { class: 'suspense-fallback', style: 'display: none' }, [${fallback}]),
-              createElem('div', { class: 'suspense-content' }, [AsyncComponent()])
+            const suspenseId = 'suspense-' + Math.random().toString(36).substring(2, 9);
+            return createElem('div', { 
+              class: 'suspense-container',
+              'data-suspense': suspenseId
+            }, [
+              createElem('div', { 
+                class: 'suspense-fallback',
+                style: 'display: none',
+                'data-suspense-fallback': suspenseId
+              }, [${fallback}]),
+              createElem('div', { 
+                class: 'suspense-content',
+                'data-suspense-content': suspenseId
+              }, [${node}])
+            ]);
+          }()`;
+        },
+        // Teleport 支持
+        'teleport': (node, dir, context) => {
+          const target = dir.arg || 'body';
+          return `{
+            const teleportId = 'teleport-' + Math.random().toString(36).substring(2, 9);
+            const teleportTarget = typeof ${target} === 'string' ? document.querySelector(${target}) : ${target};
+            
+            if (!teleportTarget) {
+              console.warn('Teleport target not found:', ${target});
+              return ${node};
+            }
+            
+            return createElem('div', {
+              class: 'teleport-placeholder',
+              'data-teleport': teleportId,
+              style: 'display: none'
+            }, [
+              {
+                type: 'teleport',
+                target: teleportTarget,
+                content: ${node},
+                id: teleportId
+              }
             ]);
           }()`;
         },

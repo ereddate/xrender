@@ -33,11 +33,30 @@ export class SFCParser {
       this.script = scriptMatch[1].trim();
     }
 
-    // 提取样式块
-    const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+    // 提取样式块，支持 lang 属性
+    const styleRegex = /<style([^>]*)>([\s\S]*?)<\/style>/gi;
     let styleMatch;
     while ((styleMatch = styleRegex.exec(this.source)) !== null) {
-      this.styles.push(styleMatch[1].trim());
+      const attributes = styleMatch[1];
+      const content = styleMatch[2].trim();
+      
+      // 解析 lang 属性
+      const langMatch = attributes.match(/lang\s*=\s*['"]([^'"]+)['"]/i);
+      const lang = langMatch ? langMatch[1].toLowerCase() : 'css';
+      
+      // 解析 scoped 属性
+      const scoped = /scoped/i.test(attributes);
+      
+      // 解析 module 属性
+      const moduleMatch = attributes.match(/module\s*(?:=\s*['"]([^'"]+)['"])?/i);
+      const module = moduleMatch ? (moduleMatch[1] || true) : false;
+      
+      this.styles.push({
+        content,
+        lang,
+        scoped,
+        module
+      });
     }
   }
 

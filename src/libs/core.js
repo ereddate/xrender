@@ -324,6 +324,73 @@ const createElem = function (tagName, attributes = {}, ...children) {
     elemChildren.call(that, wrapper, children);
     return wrapper;
   }
+  
+  // 处理 Teleport 组件
+  if (tagName === "teleport") {
+    const target = attributes.to || attributes.target || "body";
+    const teleportTarget = typeof target === "string" ? document.querySelector(target) : target;
+    
+    if (!teleportTarget) {
+      console.warn('Teleport target not found:', target);
+      const fallback = doc.createElement("div");
+      elemChildren.call(that, fallback, children);
+      return fallback;
+    }
+    
+    const teleportId = "teleport-" + Math.random().toString(36).substring(2, 9);
+    const placeholder = doc.createElement("div");
+    placeholder.setAttribute("data-teleport", teleportId);
+    placeholder.style.display = "none";
+    
+    const content = doc.createElement("div");
+    content.setAttribute("data-teleport-content", teleportId);
+    elemChildren.call(that, content, children);
+    
+    setTimeout(() => {
+      teleportTarget.appendChild(content);
+    }, 0);
+    
+    return placeholder;
+  }
+  
+  // 处理 Suspense 组件
+  if (tagName === "suspense") {
+    const fallback = attributes.fallback || "Loading...";
+    const suspenseId = "suspense-" + Math.random().toString(36).substring(2, 9);
+    
+    const container = doc.createElement("div");
+    container.setAttribute("data-suspense", suspenseId);
+    container.className = "suspense-container";
+    
+    const fallbackElement = doc.createElement("div");
+    fallbackElement.setAttribute("data-suspense-fallback", suspenseId);
+    fallbackElement.className = "suspense-fallback";
+    fallbackElement.style.display = "block";
+    
+    if (typeof fallback === "string") {
+      fallbackElement.textContent = fallback;
+    } else if (fallback && fallback.nodeType) {
+      fallbackElement.appendChild(fallback);
+    }
+    
+    const contentElement = doc.createElement("div");
+    contentElement.setAttribute("data-suspense-content", suspenseId);
+    contentElement.className = "suspense-content";
+    contentElement.style.display = "none";
+    
+    elemChildren.call(that, contentElement, children);
+    
+    container.appendChild(fallbackElement);
+    container.appendChild(contentElement);
+    
+    setTimeout(() => {
+      fallbackElement.style.display = "none";
+      contentElement.style.display = "block";
+    }, 100);
+    
+    return container;
+  }
+  
   if (attributes["static"]) {
     elem.setAttribute("data-static", "true");
     return elem;
@@ -2426,6 +2493,82 @@ const XRender = {
         }
         return createElem("div", {}, "加载中...");
       },
+    };
+  },
+  // Teleport 组件支持
+  teleport(target, content) {
+    const teleportId = 'teleport-' + Math.random().toString(36).substring(2, 9);
+    const teleportTarget = typeof target === 'string' ? document.querySelector(target) : target;
+    
+    if (!teleportTarget) {
+      console.warn('Teleport target not found:', target);
+      return content;
+    }
+    
+    const placeholder = doc.createElement('div');
+    placeholder.setAttribute('data-teleport', teleportId);
+    placeholder.style.display = 'none';
+    
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.addedNodes) {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === Node.ELEMENT_NODE && node.hasAttribute('data-teleport-content')) {
+              const contentId = node.getAttribute('data-teleport-content');
+              if (contentId === teleportId) {
+                teleportTarget.appendChild(node);
+                node.removeAttribute('data-teleport-content');
+              }
+            }
+          });
+        }
+      });
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    return placeholder;
+  },
+  // Suspense 组件支持
+  suspense(fallback, content) {
+    const suspenseId = 'suspense-' + Math.random().toString(36).substring(2, 9);
+    const container = doc.createElement('div');
+    container.setAttribute('data-suspense', suspenseId);
+    container.className = 'suspense-container';
+
+    const fallbackElement = doc.createElement('div');
+    fallbackElement.setAttribute('data-suspense-fallback', suspenseId);
+    fallbackElement.className = 'suspense-fallback';
+    fallbackElement.style.display = 'block';
+    
+    if (typeof fallback === 'string') {
+      fallbackElement.textContent = fallback;
+    } else if (fallback && fallback.nodeType) {
+      fallbackElement.appendChild(fallback);
+    }
+
+    const contentElement = doc.createElement('div');
+    contentElement.setAttribute('data-suspense-content', suspenseId);
+    contentElement.className = 'suspense-content';
+    contentElement.style.display = 'none';
+
+    container.appendChild(fallbackElement);
+    container.appendChild(contentElement);
+
+    return {
+      element: container,
+      resolve: (resolvedContent) => {
+        if (typeof resolvedContent === 'string') {
+          contentElement.textContent = resolvedContent;
+        } else if (resolvedContent && resolvedContent.nodeType) {
+          contentElement.appendChild(resolvedContent);
+        }
+        fallbackElement.style.display = 'none';
+        contentElement.style.display = 'block';
+      }
     };
   },
   // 新增测试相关方法
