@@ -1,9 +1,10 @@
 import XRender from './core.js';
 import customDirectives from './customDirectives.js';
-import { initSFC } from './sfc/index.js';
 
-// 初始化 SFC 功能
-initSFC(XRender);
+// 按需引入SFC功能
+// 当需要使用SFC功能时，可以按以下方式引入：
+// import { initSFC } from './libs/index.js';
+// initSFC(XRender);
 
-export { XRender, customDirectives, initSFC };
+export { XRender, customDirectives };
 export default XRender;
