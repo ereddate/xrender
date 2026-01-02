@@ -12,6 +12,7 @@ XRender 是一个轻量级的前端框架，专注于组件化开发和数据驱
 - **版本管理**：内置版本管理系统，支持语义化版本控制。
 - **独立打包**：每个模块可独立打包，支持版本化文件和目录。
 - **SSR 支持**：支持服务器端渲染（SSR）。
+- **SSG 支持**：支持静态站点生成（SSG），优化 SEO 性能。
 - **路由支持**：支持路由管理和导航。
 - **状态管理**：支持状态管理。
 - **响应式系统**：支持响应式数据、计算属性和深度监听。
@@ -563,6 +564,95 @@ const app = $.createApp({ App });
 const html = app.$mount().$html();
 console.log(html);
 ```
+
+## 静态站点生成（SSG）
+XRender 支持静态站点生成（SSG），可以将应用预渲染为静态 HTML 文件，从而显著提升 SEO 性能和首屏加载速度。
+
+### 快速开始
+
+#### 1. 安装 SSG 模块
+
+```bash
+npm install xrender
+```
+
+#### 2. 配置 Vite 插件
+
+在 `vite.config.js` 中配置 SSG 插件：
+
+```javascript
+import { defineConfig } from "vite";
+import { xrenderSSGPlugin } from "xrender/libs/ssg/vite-plugin.js";
+
+export default defineConfig({
+  plugins: [
+    xrenderSSGPlugin({
+      routes: [
+        {
+          path: '/',
+          component: Home,
+          meta: {
+            title: '首页',
+            description: '这是首页描述'
+          }
+        }
+      ]
+    })
+  ]
+});
+```
+
+#### 3. 构建静态站点
+
+```bash
+npm run build:ssg
+```
+
+### 配置选项
+
+```javascript
+{
+  routes: [],           // 路由配置
+  outDir: 'dist',       // 输出目录
+  templatePath: 'index.html', // HTML 模板路径
+  publicPath: '/',      // 公共路径
+  preloadData: true,    // 是否预加载数据
+  concurrency: 5,        // 并发数
+  minify: true          // 是否压缩 HTML
+}
+```
+
+### 元数据配置
+
+每个路由可以配置 SEO 元数据：
+
+```javascript
+{
+  path: '/about',
+  component: About,
+  meta: {
+    title: '关于我们',
+    description: '页面描述',
+    keywords: '关键词',
+    ogTitle: 'OG 标题',
+    ogDescription: 'OG 描述',
+    twitterCard: 'summary_large_image'
+  }
+}
+```
+
+### 示例项目
+
+查看完整的 SSG 示例项目：
+
+```bash
+cd examples/ssg-demo
+npm install
+npm run build:ssg
+npm run preview
+```
+
+详细的 SSG 使用指南请参考 [SSG 使用指南](docs/guides/ssg-guide.md)。
 
 ## 许可证
 XRender 基于 MIT 许可证发布。请查看 [LICENSE](LICENSE) 文件了解更多信息。

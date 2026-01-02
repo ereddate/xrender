@@ -12,6 +12,7 @@ XRender is a lightweight front-end framework focused on component-based developm
 - **Version Management**: Built-in version management system supporting semantic versioning.
 - **Independent Packaging**: Each module can be packaged independently, supporting versioned files and directories.
 - **SSR Support**: Supports Server-Side Rendering (SSR).
+- **SSG Support**: Supports Static Site Generation (SSG) for optimized SEO performance.
 - **Routing Support**: Supports routing management and navigation.
 - **State Management**: Supports state management.
 - **Reactive System**: Supports reactive data, computed properties, and deep watching.
@@ -569,6 +570,95 @@ const app = $.createApp({ App });
 const html = app.$mount().$html();
 console.log(html);
 ```
+
+## Static Site Generation (SSG)
+XRender supports Static Site Generation (SSG), which can pre-render applications as static HTML files, significantly improving SEO performance and initial page load speed.
+
+### Quick Start
+
+#### 1. Install SSG Module
+
+```bash
+npm install xrender
+```
+
+#### 2. Configure Vite Plugin
+
+Configure the SSG plugin in `vite.config.js`:
+
+```javascript
+import { defineConfig } from "vite";
+import { xrenderSSGPlugin } from "xrender/libs/ssg/vite-plugin.js";
+
+export default defineConfig({
+  plugins: [
+    xrenderSSGPlugin({
+      routes: [
+        {
+          path: '/',
+          component: Home,
+          meta: {
+            title: 'Home',
+            description: 'This is the home page description'
+          }
+        }
+      ]
+    })
+  ]
+});
+```
+
+#### 3. Build Static Site
+
+```bash
+npm run build:ssg
+```
+
+### Configuration Options
+
+```javascript
+{
+  routes: [],           // Route configuration
+  outDir: 'dist',       // Output directory
+  templatePath: 'index.html', // HTML template path
+  publicPath: '/',      // Public path
+  preloadData: true,    // Whether to preload data
+  concurrency: 5,        // Concurrency
+  minify: true          // Whether to minify HTML
+}
+```
+
+### Metadata Configuration
+
+Each route can be configured with SEO metadata:
+
+```javascript
+{
+  path: '/about',
+  component: About,
+  meta: {
+    title: 'About Us',
+    description: 'Page description',
+    keywords: 'keywords',
+    ogTitle: 'OG Title',
+    ogDescription: 'OG Description',
+    twitterCard: 'summary_large_image'
+  }
+}
+```
+
+### Example Project
+
+Check out the complete SSG example project:
+
+```bash
+cd examples/ssg-demo
+npm install
+npm run build:ssg
+npm run preview
+```
+
+For detailed SSG usage guide, please refer to [SSG Guide](docs/guides/ssg-guide.md).
 
 ## License
 XRender is released under the MIT License. Please see the [LICENSE](LICENSE) file for more information.

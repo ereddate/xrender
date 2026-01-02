@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:ssg": "vite build --config vite.config.ssg.js",
     "build:libs": "vite build --config vite.config.libs.js",
     "build:fetch": "vite build --config vite.config.fetch.js",
     "build:router": "vite build --config vite.config.router.js",
@@ -19,7 +20,8 @@
     "build:i18n": "vite build --config vite.config.i18n.js",
     "build:touchs": "vite build --config vite.config.touchs.js",
     "build:sfc": "vite build --config vite.config.sfc.js",
-    "build:all": "npm run build:libs && npm run build:fetch && npm run build:router && npm run build:store && npm run build:i18n && npm run build:touchs && npm run build:sfc && node scripts/post-build.js latest",
+    "build:ssg:module": "vite build --config vite.config.ssg.module.js",
+    "build:all": "npm run build:libs && npm run build:fetch && npm run build:router && npm run build:store && npm run build:i18n && npm run build:touchs && npm run build:sfc && npm run build:ssg:module && node scripts/post-build.js latest",
     "post-build:latest": "node scripts/post-build.js latest",
     "post-build:clean": "node scripts/post-build.js clean",
     "post-build:list": "node scripts/post-build.js list",
