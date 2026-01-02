@@ -5,32 +5,33 @@
 ## 文档导航
 
 ### 快速开始
-- [快速开始指南](guides/quick-start.md) - 快速上手 XRender
-- [安装指南](guides/installation.md) - 安装和配置 XRender
+- [快速开始指南](guides/getting-started.md) - 快速上手 XRender SFC
 
 ### 核心概念
 - [SFC 组件管理系统](guides/sfc-guide.md) - 单文件组件开发指南
-- [响应式系统](guides/reactivity.md) - 数据响应式和计算属性
-- [组件生命周期](guides/lifecycle.md) - 生命周期钩子详解
-- [指令系统](guides/directives.md) - 内置指令和自定义指令
+- [最佳实践](guides/best-practices.md) - 组件开发最佳实践
 
 ### API 参考
-- [核心 API](api/core.md) - XRender 核心 API
-- [SFC API](api/sfc.md) - 单文件组件 API
 - [生命周期管理器 API](api/lifecycle-manager.md) - 生命周期钩子管理
 - [类型检查 API](api/typescript-type-manager.md) - TypeScript 类型检查
-- [组件缓存 API](api/component-cache.md) - 组件缓存管理
-- [异步组件 API](api/async-component.md) - 异步组件加载
-- [插槽管理 API](api/advanced-slot.md) - 高级插槽管理
-- [样式处理 API](api/advanced-style.md) - 样式处理和作用域
-- [错误边界 API](api/error-boundary.md) - 错误捕获和恢复
+- [组件缓存 API](api/component-cache-manager.md) - 组件缓存管理
+- [异步组件 API](api/async-component-manager.md) - 异步组件加载
+- [插槽管理 API](api/advanced-slot-manager.md) - 高级插槽管理
+- [样式处理 API](api/advanced-style-processor.md) - 样式处理和作用域
+- [错误边界 API](api/error-boundary-manager.md) - 错误捕获和恢复
 - [性能监控 API](api/performance-monitor.md) - 组件性能监控
+- [SFC 构建器 API](api/sfc-builder.md) - SFC 组件构建
+- [SFC 解析器 API](api/sfc-parser.md) - SFC 文件解析
+- [模板编译器 API](api/template-compiler.md) - 模板编译
+- [样式处理器 API](api/style-processor.md) - 样式处理
+- [入口模块 API](api/entry.md) - SFC 入口和初始化
+- [核心 SFC 模块 API](api/index.md) - 核心 SFC 模块导出
 
 ### 架构设计
-- [架构概览](architecture/overview.md) - XRender 整体架构
-- [SFC 架构](architecture/sfc-architecture.md) - 单文件组件架构
-- [模块化设计](architecture/modular-design.md) - 模块化和插件系统
-- [性能优化](architecture/performance.md) - 性能优化策略
+- [架构概览](architecture.md) - XRender SFC 架构设计
+
+### 常见问题
+- [常见问题解答](faq.md) - FAQ 和疑难解答
 
 ## 功能特性
 
