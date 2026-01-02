@@ -921,6 +921,18 @@ export class Component {
     this._cacheKey = null;
     this.$i18n = parent?.$i18n || XRender.$i18n;
     // 新增生命周期钩子
+    this._beforeMountHooks = [];
+    this._mountedHooks = [];
+    this._beforeUpdateHooks = [];
+    this._updatedHooks = [];
+    this._beforeUnmountHooks = [];
+    this._unmountedHooks = [];
+    this._errorCapturedHooks = [];
+    this._renderTrackedHooks = [];
+    this._renderTriggeredHooks = [];
+    this._activatedHooks = [];
+    this._deactivatedHooks = [];
+    this._isSFC = options && options.isSFC; // 标记是否为 SFC 组件
     this.beforeCreate = options?.beforeCreate || (() => {});
     this.created = options?.created || (() => {});
     this.beforeMount = (options && options.beforeMount) || (() => {});
@@ -1033,7 +1045,16 @@ export class Component {
     this._callLifecycleHooks('beforeMount');
     setCurrentInstance(null);
     this.beforeMount?.call(this);
-    this._setupComponent();
+    
+    // 处理 SFC 组件
+    if (this._isSFC) {
+      // 对于 SFC 组件，直接渲染模板并创建 DOM 元素
+      this._renderSFC();
+    } else {
+      // 对于常规组件，使用原有逻辑
+      this._setupComponent();
+    }
+    
     this.mounted?.call(this);
     // 调用 onMounted 钩子（需要重新设置 currentInstance）
     setCurrentInstance(this);
@@ -1046,6 +1067,125 @@ export class Component {
   _cleanupContextSubscriptions() {
     this._contextSubscriptions.forEach((unsubscribe) => unsubscribe());
     this._contextSubscriptions.clear();
+  }
+
+  // SFC 组件渲染方法
+  _renderSFC() {
+    try {
+      // 如果没有 SFC 描述符，则使用现有模板
+      if (!this.options.sfcDescriptor) {
+        console.warn(`[${this.name}] SFC 组件缺少描述符，使用默认模板`);
+        this.el = this.render?.call(this, createElem.bind(this)) || createElem.call(this, 'div', {}, []);
+        return;
+      }
+
+      const { sfcDescriptor, render, styles } = this.options;
+
+      // 处理样式注入
+      if (styles && styles.length > 0) {
+        this._injectStyles(styles, sfcDescriptor.scopeId);
+      }
+
+      // 如果有渲染函数，直接使用
+      if (typeof render === 'function') {
+        this.vnode = render.call(this, createElem.bind(this));
+        // 检查vnode是否已经是真实DOM元素
+        if (this.vnode && typeof this.vnode.nodeType === 'number') {
+          this.el = this.vnode;
+        } else {
+          this.el = VDOMUtils.createElement(this.vnode);
+        }
+      } else {
+        // 退回到使用模板字符串创建 DOM
+        console.warn(`[${this.name}] SFC 组件没有渲染函数，使用模板字符串`);
+        this.el = this.render?.call(this, createElem.bind(this)) || createElem.call(this, 'div', {}, []);
+      }
+
+      // 方法绑定和代理
+      if (this.methods) {
+        Object.entries(this.methods).forEach(([key, value]) => {
+          this[key] = value.bind(this);
+        });
+      }
+
+      // 应用进入过渡
+      if (this.transition) {
+        this.applyTransition(this.el, "enter", {
+          name: this.transition,
+          duration: 500,
+        });
+      }
+    } catch (error) {
+      console.error(`[${this.name}] SFC 渲染错误:`, error);
+      this._errorHandler(error);
+      
+      // 在错误情况下创建备用元素
+      this.el = createElem.call(this, 'div', {}, [
+        createElem.call(this, 'p', {}, [`渲染错误: ${error.message}`])
+      ]);
+    }
+  }
+
+  // 注入样式到页面
+  _injectStyles(styles, scopeId) {
+    if (!styles || !Array.isArray(styles) || styles.length === 0) {
+      return;
+    }
+
+    // 创建或获取样式元素
+    let styleElement = document.getElementById(`xrt-styles-${scopeId}`);
+    if (!styleElement) {
+      styleElement = document.createElement('style');
+      styleElement.id = `xrt-styles-${scopeId}`;
+      document.head.appendChild(styleElement);
+    }
+
+    // 添加样式内容
+    const styleContent = styles.map(style => {
+      // 如果启用作用域样式，添加 scopeId 前缀
+      if (scopeId && this.options.scopeStyles) {
+        return this._transformStyleRules(style, scopeId);
+      }
+      return style;
+    }).join('\n');
+
+    styleElement.textContent = styleContent;
+  }
+
+  // 转换样式规则以添加作用域
+  _transformStyleRules(style, scopeId) {
+    // 简单的选择器转换逻辑，实际实现会更复杂
+    // 这里只是将所有选择器添加 [data-scope-id] 属性选择器
+    return style.replace(/([^{}]+)\{/g, (match, selector) => {
+      // 跳过特殊选择器
+      if (selector.trim().startsWith('@') || selector.includes('global')) {
+        return match;
+      }
+      
+      // 为选择器添加作用域
+      const scopedSelector = selector.split(',').map(sel => {
+        sel = sel.trim();
+        // 如果选择器已经是子选择器，则直接在末尾添加
+        if (sel.startsWith('[') || sel.startsWith('.') || sel.startsWith('#')) {
+          return `${sel}[data-scope-id="${scopeId}"]`;
+        }
+        // 其他情况添加后代选择器
+        return `${sel}[data-scope-id="${scopeId}"]`;
+      }).join(', ');
+      
+      return `${scopedSelector} {`;
+    });
+  }
+
+  // 生成作用域 ID
+  _generateScopeId() {
+    // 生成一个唯一的 ID 用于样式作用域
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let id = '';
+    for (let i = 0; i < 8; i++) {
+      id += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return id;
   }
 
   // 调用组合式 API 的生命周期钩子
@@ -1749,27 +1889,33 @@ export class Component {
         setCurrentInstance(null);
         that.beforeUpdate?.call(that);
         if (that.isMounted) {
-          // 获取新的虚拟DOM或真实DOM
-          const newVnode = that.render.call(that, function () {
-            return createElem.call(that, ...arguments);
-          });
-          
-          // 检查newVnode是否已经是真实DOM元素
-          if (newVnode && typeof newVnode.nodeType === 'number') {
-            // 如果是真实DOM元素，直接替换
-            if (that.el.parentNode) {
-              that.el.parentNode.replaceChild(newVnode, that.el);
-              that.el = newVnode;
+            // 获取新的虚拟DOM或真实DOM
+            const newVnode = that.render.call(that, function () {
+              return createElem.call(that, ...arguments);
+            });
+            
+            // 检查newVnode是否已经是真实DOM元素
+            if (newVnode && typeof newVnode.nodeType === 'number') {
+              // 如果是真实DOM元素，直接替换
+              if (that.el.parentNode) {
+                that.el.parentNode.replaceChild(newVnode, that.el);
+                that.el = newVnode;
+              }
+            } else if (that.vnode) {
+              // 使用key优化的diff算法
+              VDOMUtils.keyedDiff(that.vnode, newVnode, that.el.parentNode);
+              that.vnode = newVnode;
+            } else {
+              // 初次渲染
+              that.vnode = newVnode;
+              that.el = VDOMUtils.createElement(that.vnode);
             }
-          } else if (that.vnode) {
-            // 使用key优化的diff算法
-            VDOMUtils.keyedDiff(that.vnode, newVnode, that.el.parentNode);
-            that.vnode = newVnode;
-          } else {
-            // 初次渲染
-            that.vnode = newVnode;
-            that.el = VDOMUtils.createElement(that.vnode);
-          }
+            
+            // 调用 onUpdated 钩子（需要设置 currentInstance）
+            setCurrentInstance(that);
+            that._callLifecycleHooks('updated');
+            setCurrentInstance(null);
+            that.updated?.call(that);
           
           // 调用指令的 update 钩子
           Object.entries(XRender.directives).forEach(([name, directive]) => {

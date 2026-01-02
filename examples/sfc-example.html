@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XRender SFC 示例</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 {
+      color: #2c3e50;
+    }
+    .container {
+      margin-top: 30px;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background-color: #f9f9f9;
+    }
+  </style>
+</head>
+<body>
+  <h1>XRender SFC 示例</h1>
+  <div id="app" class="container"></div>
+  
+  <!-- 加载 XRender 核心库 -->
+  <script type="module">
+    import XRender from './src/libs/index.js';
+    
+    // 从 .xrt 文件加载 SFC 组件
+    async function loadComponent() {
+      try {
+        // 使用 XRender.sfc.loadFromFile 方法加载 .xrt 文件
+        const counterComponent = await XRender.sfc.loadFromFile('./examples/sfc-example-counter.xrt');
+        
+        // 创建组件实例并挂载到 DOM
+        const counter = new XRender.Component('Counter', counterComponent);
+        counter.mount('#app');
+        
+        console.log('SFC 组件加载成功');
+      } catch (error) {
+        console.error('加载 SFC 组件失败:', error);
+        document.getElementById('app').innerHTML = `<p>加载组件失败: ${error.message}</p>`;
+      }
+    }
+    
+    // 加载组件
+    loadComponent();
+  </script>
+</body>
+</html>

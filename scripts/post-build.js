@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 
 const versionsPath = path.join(__dirname, '../src/libs/versions.json');
 const distLibsPath = path.join(__dirname, '../dist/libs');
-const modules = ['xrender', 'fetch', 'router', 'store', 'i18n', 'touchs'];
+const modules = ['xrender', 'fetch', 'router', 'store', 'i18n', 'touchs', 'sfc'];
 
 function readVersions() {
   try {

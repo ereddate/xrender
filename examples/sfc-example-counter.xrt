@@ -1,0 +1,94 @@
+<template>
+  <div class="counter-container">
+    <h1>{{ title }}</h1>
+    <div class="counter-display">
+      <span>{{ count }}</span>
+    </div>
+    <div class="counter-controls">
+      <button @click="decrement">-</button>
+      <button @click="reset">重置</button>
+      <button @click="increment">+</button>
+    </div>
+  </div>
+</template>
+
+<script>
+  // SFC 脚本部分，使用组合式 API
+  
+  export default {
+    name: 'Counter',
+    setup() {
+      // 使用 ref 创建响应式状态
+      const count = ref(0);
+      const title = ref('我的计数器');
+      
+      // 方法
+      const increment = () => {
+        count.value++;
+      };
+      
+      const decrement = () => {
+        count.value--;
+      };
+      
+      const reset = () => {
+        count.value = 0;
+      };
+      
+      // 返回状态和方法
+      return {
+        count,
+        title,
+        increment,
+        decrement,
+        reset
+      };
+    }
+  };
+</script>
+
+<style>
+  .counter-container {
+    max-width: 300px;
+    margin: 0 auto;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background-color: #f5f5f5;
+  }
+  
+  h1 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 20px;
+  }
+  
+  .counter-display {
+    background-color: white;
+    border-radius: 4px;
+    padding: 20px;
+    text-align: center;
+    font-size: 2em;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 20px;
+  }
+  
+  .counter-controls {
+    display: flex;
+    justify-content: space-between;
+  }
+  
+  button {
+    padding: 10px 20px;
+    font-size: 1em;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  button:hover {
+    background-color: #ddd;
+  }
+</style>

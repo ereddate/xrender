@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XRender SFC 功能测试</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 {
+      color: #2c3e50;
+      text-align: center;
+    }
+    .container {
+      margin-top: 30px;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background-color: #f9f9f9;
+    }
+    .status {
+      padding: 10px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+      background-color: #e8f4f8;
+      border-left: 4px solid #2196F3;
+    }
+    .error {
+      padding: 10px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+      background-color: #ffebee;
+      border-left: 4px solid #f44336;
+    }
+  </style>
+</head>
+<body>
+  <h1>XRender SFC 功能测试</h1>
+  <div id="app" class="container">
+    <div class="status">正在加载 SFC 组件...</div>
+  </div>
+  
+  <!-- 加载 XRender 核心库 -->
+  <script type="module">
+    import XRender from './src/libs/index.js';
+    
+    // 测试加载和渲染 SFC 组件
+    async function testSFC() {
+      try {
+        console.log('XRender 版本:', XRender.Component.version);
+        console.log('XRender.sfc 是否存在:', !!XRender.sfc);
+        
+        if (!XRender.sfc) {
+          throw new Error('XRender.sfc 未初始化');
+        }
+        
+        // 获取 XRT 文件内容
+        const response = await fetch('./examples/sfc-example-counter.xrt');
+        if (!response.ok) {
+          throw new Error(`无法加载 XRT 文件: ${response.status}`);
+        }
+        const xrtContent = await response.text();
+        console.log('XRT 内容长度:', xrtContent.length);
+        
+        // 解析 SFC
+        const descriptor = XRender.sfc.parse(xrtContent);
+        console.log('SFC 解析结果:', descriptor);
+        
+        if (descriptor.errors && descriptor.errors.length > 0) {
+          throw new Error(`SFC 解析错误: ${descriptor.errors.join(', ')}`);
+        }
+        
+        // 编译 SFC
+        const compiled = XRender.sfc.compile(xrtContent);
+        console.log('SFC 编译结果:', compiled);
+        
+        // 创建组件配置
+        const componentConfig = compiled.render 
+          ? { 
+              render: compiled.render, 
+              isSFC: true,
+              setup: () => ({ 
+                state: { count: 0, title: '我的计数器' }, 
+                actions: { 
+                  increment() { this.state.count++; },
+                  decrement() { this.state.count--; },
+                  reset() { this.state.count = 0; }
+                }
+              }) 
+            }
+          : { render: () => createElem('div', {}, ['无法编译模板']) };
+        
+        // 创建组件实例
+        const counter = new XRender.Component('Counter', componentConfig);
+        
+        // 挂载组件
+        const mountPoint = document.getElementById('app');
+        counter.mount(mountPoint);
+        
+        // 显示成功状态
+        const statusElement = document.createElement('div');
+        statusElement.className = 'status';
+        statusElement.textContent = 'SFC 组件加载成功！';
+        mountPoint.appendChild(statusElement);
+        
+        // 清理初始加载消息
+        const loadingMessage = mountPoint.querySelector('.status');
+        if (loadingMessage) {
+          mountPoint.removeChild(loadingMessage);
+        }
+        
+        console.log('SFC 组件成功加载和渲染');
+      } catch (error) {
+        console.error('SFC 测试失败:', error);
+        
+        // 显示错误信息
+        const mountPoint = document.getElementById('app');
+        const errorElement = document.createElement('div');
+        errorElement.className = 'error';
+        errorElement.textContent = `SFC 测试失败: ${error.message}`;
+        mountPoint.appendChild(errorElement);
+      }
+    }
+    
+    // 运行测试
+    testSFC();
+  </script>
+</body>
+</html>

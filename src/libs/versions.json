@@ -28,5 +28,10 @@
     "name": "XRenderTouchs",
     "version": "1.0.0",
     "description": "移动端触摸事件"
+  },
+  "sfc": {
+    "name": "XRenderSFC",
+    "version": "1.0.0",
+    "description": "单文件组件支持"
   }
 }
