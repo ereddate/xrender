@@ -1,0 +1,289 @@
+<template>
+  <div class="slot-demo-container">
+    <h1>🎯 XRender 插槽功能完整演示</h1>
+    
+    <!-- 基础插槽 -->
+    <section class="demo-section">
+      <h2>1. 基础插槽示例</h2>
+      <basic-slot-demo>
+        <p>这是插入到默认插槽的内容</p>
+      </basic-slot-demo>
+    </section>
+
+    <!-- 命名插槽 -->
+    <section class="demo-section">
+      <h2>2. 命名插槽示例</h2>
+      <named-slot-demo>
+        <template v-slot:header>
+          <h3>这是自定义头部内容</h3>
+        </template>
+        <p>这是主体内容，会插入到默认插槽</p>
+        <template v-slot:footer>
+          <p>这是自定义底部内容</p>
+        </template>
+      </named-slot-demo>
+    </section>
+
+    <!-- 作用域插槽 -->
+    <section class="demo-section">
+      <h2>3. 作用域插槽示例</h2>
+      <scoped-slot-demo>
+        <template v-slot:item="slotProps">
+          <div class="scoped-item">
+            <span class="item-id">{{ slotProps.item.id }}</span>
+            <span class="item-name">{{ slotProps.item.name }}</span>
+            <span class="item-price">¥{{ slotProps.item.price }}</span>
+            <button @click="slotProps.buyItem(slotProps.item)">购买</button>
+          </div>
+        </template>
+      </scoped-slot-demo>
+    </section>
+
+    <!-- 动态插槽 -->
+    <section class="demo-section">
+      <h2>4. 动态插槽示例</h2>
+      <dynamic-slot-demo :active-slot="currentSlot">
+        <template v-slot:content1>
+          <div class="dynamic-content">
+            <h4>内容区域 1</h4>
+            <p>这是第一个动态内容区域</p>
+            <input v-model="dynamicData.message" placeholder="输入消息">
+            <p>当前消息: {{ dynamicData.message }}</p>
+          </div>
+        </template>
+        <template v-slot:content2>
+          <div class="dynamic-content">
+            <h4>内容区域 2</h4>
+            <p>这是第二个动态内容区域</p>
+            <select v-model="dynamicData.category">
+              <option value="tech">科技</option>
+              <option value="life">生活</option>
+              <option value="news">新闻</option>
+            </select>
+            <p>选择分类: {{ dynamicData.category }}</p>
+          </div>
+        </template>
+      </dynamic-slot-demo>
+      <div class="slot-controls">
+        <button @click="currentSlot = 'content1'">切换到内容1</button>
+        <button @click="currentSlot = 'content2'">切换到内容2</button>
+      </div>
+    </section>
+
+    <!-- 插槽传参示例 -->
+    <section class="demo-section">
+      <h2>5. 插槽传参示例</h2>
+      <slot-props-demo>
+        <template v-slot:custom="props">
+          <div class="props-slot">
+            <h4>{{ props.title }}</h4>
+            <p>用户: {{ props.user.name }} ({{ props.user.age }}岁)</p>
+            <p>角色: {{ props.user.role }}</p>
+            <p>时间: {{ props.timestamp }}</p>
+            <div class="actions">
+              <button @click="props.notify('点赞成功!')">点赞</button>
+              <button @click="props.notify('收藏成功!')">收藏</button>
+              <button @click="props.notify('分享成功!')">分享</button>
+            </div>
+          </div>
+        </template>
+      </slot-props-demo>
+    </section>
+
+    <!-- 复杂插槽嵌套 -->
+    <section class="demo-section">
+      <h2>6. 复杂插槽嵌套示例</h2>
+      <nested-slot-demo>
+        <template v-slot:header="headerProps">
+          <div class="nested-header">
+            <h3>{{ headerProps.title }}</h3>
+            <p>{{ headerProps.subtitle }}</p>
+          </div>
+        </template>
+        <template v-slot:content="contentProps">
+          <div class="nested-content">
+            <p>主内容区域</p>
+            <nested-slot-demo>
+              <template v-slot:inner="innerProps">
+                <div class="nested-inner">
+                  <strong>{{ innerProps.label }}</strong>
+                  <p>{{ innerProps.description }}</p>
+                </div>
+              </template>
+            </nested-slot-demo>
+          </div>
+        </template>
+      </nested-slot-demo>
+    </section>
+
+  </div>
+</template>
+
+<script>
+  // XRender 组合式 API 导入
+  import { ref, reactive } from 'xrender';
+
+  export default {
+    name: 'SlotDemoPage',
+    setup() {
+      // 响应式数据
+      const currentSlot = ref('content1');
+      const dynamicData = reactive({
+        message: '',
+        category: 'tech'
+      });
+
+      // 方法
+      const notify = (message) => {
+        alert(message);
+      };
+
+      // 返回给模板使用的数据和方法
+      return {
+        currentSlot,
+        dynamicData,
+        notify
+      };
+    }
+  };
+</script>
+
+<style scoped>
+  .slot-demo-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: 'Arial', sans-serif;
+  }
+
+  .demo-section {
+    margin-bottom: 40px;
+    padding: 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background-color: #fafafa;
+  }
+
+  .demo-section h2 {
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+  }
+
+  .slot-controls {
+    margin-top: 15px;
+    text-align: center;
+  }
+
+  .slot-controls button {
+    margin: 0 10px;
+    padding: 8px 16px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .slot-controls button:hover {
+    background-color: #2980b9;
+  }
+
+  /* 作用域插槽样式 */
+  .scoped-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    margin: 5px 0;
+    background-color: white;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .item-id {
+    background-color: #3498db;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-right: 10px;
+    font-size: 12px;
+  }
+
+  .item-name {
+    flex: 1;
+    font-weight: bold;
+  }
+
+  .item-price {
+    color: #e74c3c;
+    font-weight: bold;
+    margin: 0 10px;
+  }
+
+  /* 动态内容样式 */
+  .dynamic-content {
+    padding: 15px;
+    background-color: white;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .dynamic-content input,
+  .dynamic-content select {
+    width: 100%;
+    padding: 8px;
+    margin: 10px 0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+
+  /* 插槽传参样式 */
+  .props-slot {
+    padding: 15px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 8px;
+  }
+
+  .props-slot .actions {
+    margin-top: 15px;
+  }
+
+  .props-slot .actions button {
+    margin: 0 5px;
+    padding: 6px 12px;
+    background-color: rgba(255,255,255,0.2);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .props-slot .actions button:hover {
+    background-color: rgba(255,255,255,0.3);
+  }
+
+  /* 嵌套插槽样式 */
+  .nested-header {
+    background-color: #2c3e50;
+    color: white;
+    padding: 15px;
+    border-radius: 4px 4px 0 0;
+  }
+
+  .nested-content {
+    background-color: white;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 0 0 4px 4px;
+  }
+
+  .nested-inner {
+    background-color: #ecf0f1;
+    padding: 15px;
+    margin: 10px;
+    border-radius: 4px;
+    border-left: 4px solid #3498db;
+  }
+</style>

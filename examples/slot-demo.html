@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XRender 插槽功能完整演示</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+      background-color: #f5f5f5;
+    }
+    h1 {
+      color: #2c3e50;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .container {
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .demo-section {
+      margin-bottom: 40px;
+      padding: 20px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background-color: #fafafa;
+    }
+    .demo-section h2 {
+      color: #2c3e50;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+    .slot-controls {
+      margin-top: 15px;
+      text-align: center;
+    }
+    .slot-controls button {
+      margin: 0 10px;
+      padding: 8px 16px;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .slot-controls button:hover {
+      background-color: #2980b9;
+    }
+    /* 组件样式 */
+    .basic-slot-demo, .named-slot-demo, .scoped-slot-demo {
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .named-slot-header {
+      background-color: #3498db;
+      color: white;
+      padding: 15px;
+      margin: -20px -20px 20px -20px;
+      border-radius: 8px 8px 0 0;
+    }
+    .named-slot-footer {
+      background-color: #ecf0f1;
+      padding: 15px;
+      margin: 20px -20px -20px -20px;
+      border-radius: 0 0 8px 8px;
+    }
+    .scoped-item {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      margin: 5px 0;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      border: 1px solid #dee2e6;
+    }
+    .item-id {
+      background-color: #3498db;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin-right: 10px;
+      font-size: 12px;
+    }
+    .item-name {
+      flex: 1;
+      font-weight: bold;
+    }
+    .item-price {
+      color: #e74c3c;
+      font-weight: bold;
+      margin: 0 10px;
+    }
+    .dynamic-content {
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      border: 1px solid #dee2e6;
+    }
+    .dynamic-content input,
+    .dynamic-content select {
+      width: 100%;
+      padding: 8px;
+      margin: 10px 0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .props-slot {
+      padding: 15px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 8px;
+    }
+    .props-slot .actions {
+      margin-top: 15px;
+    }
+    .props-slot .actions button {
+      margin: 0 5px;
+      padding: 6px 12px;
+      background-color: rgba(255,255,255,0.2);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .props-slot .actions button:hover {
+      background-color: rgba(255,255,255,0.3);
+    }
+    .nested-header {
+      background-color: #2c3e50;
+      color: white;
+      padding: 15px;
+      margin: -20px -20px 20px -20px;
+      border-radius: 8px 8px 0 0;
+    }
+    .nested-content {
+      padding: 20px;
+      background-color: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 0 0 8px 8px;
+    }
+    .nested-inner {
+      background-color: #ecf0f1;
+      padding: 15px;
+      margin: 10px;
+      border-radius: 4px;
+      border-left: 4px solid #3498db;
+    }
+    .status {
+      padding: 10px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+      background-color: #d4edda;
+      border-left: 4px solid #28a745;
+    }
+    .error {
+      padding: 10px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+      background-color: #f8d7da;
+      border-left: 4px solid #dc3545;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎯 XRender 插槽功能完整演示</h1>
+  <div id="app" class="container">
+    <div class="status">正在加载插槽演示组件...</div>
+  </div>
+  
+  <!-- 加载 XRender 核心库 -->
+  <script type="module">
+    import XRender from './src/libs/index.js';
+    
+    // 定义基础插槽组件
+    const BasicSlotDemo = XRender.Component('BasicSlotDemo', {
+      render(createElem) {
+        return createElem('div', { class: 'basic-slot-demo' },
+          createElem('h3', {}, '基础插槽'),
+          createElem('p', {}, '下面的内容来自插槽：'),
+          createElem('div', { class: 'slot-content' },
+            createElem('slot', {}, '这是默认插槽内容')
+          )
+        );
+      }
+    });
+
+    // 定义命名插槽组件
+    const NamedSlotDemo = XRender.Component('NamedSlotDemo', {
+      render(createElem) {
+        return createElem('div', { class: 'named-slot-demo' },
+          createElem('slot', { name: 'header' }, 
+            createElem('div', { class: 'named-slot-header' }, '默认头部')
+          ),
+          createElem('div', { class: 'main-content' },
+            createElem('slot', {}, '默认内容')
+          ),
+          createElem('slot', { name: 'footer' },
+            createElem('div', { class: 'named-slot-footer' }, '默认底部')
+          )
+        );
+      }
+    });
+
+    // 定义作用域插槽组件
+    const ScopedSlotDemo = XRender.Component('ScopedSlotDemo', {
+      data() {
+        return {
+          items: [
+            { id: 1, name: 'iPhone 15', price: 7999 },
+            { id: 2, name: 'MacBook Pro', price: 15999 },
+            { id: 3, name: 'iPad Air', price: 4399 }
+          ]
+        };
+      },
+      methods: {
+        buyItem(item) {
+          alert(`购买 ${item.name} 成功！价格：¥${item.price}`);
+        }
+      },
+      render(createElem) {
+        return createElem('div', { class: 'scoped-slot-demo' },
+          createElem('h3', {}, '作用域插槽'),
+          createElem('p', {}, '自定义渲染每个项目：'),
+          createElem('div', {},
+            createElem('slot', { name: 'item', data: { items: this.items, buyItem: this.buyItem } })
+          )
+        );
+      }
+    });
+
+    // 定义动态插槽组件
+    const DynamicSlotDemo = XRender.Component('DynamicSlotDemo', {
+      props: ['activeSlot'],
+      render(createElem) {
+        return createElem('div', { class: 'dynamic-slot-demo' },
+          createElem('h3', {}, '动态插槽'),
+          createElem('div', {},
+            createElem('slot', { name: this.activeSlot || 'content1' })
+          )
+        );
+      }
+    });
+
+    // 定义插槽传参组件
+    const SlotPropsDemo = XRender.Component('SlotPropsDemo', {
+      data() {
+        return {
+          slotData: {
+            title: '用户信息',
+            user: { name: '张三', age: 28, role: '前端工程师' },
+            timestamp: new Date().toLocaleString()
+          }
+        };
+      },
+      methods: {
+        notify(message) {
+          alert(message);
+        }
+      },
+      render(createElem) {
+        return createElem('div', { class: 'slot-props-demo' },
+          createElem('h3', {}, '插槽传参'),
+          createElem('div', {},
+            createElem('slot', { 
+              name: 'custom', 
+              data: { ...this.slotData, notify: this.notify }
+            })
+          )
+        );
+      }
+    });
+
+    // 定义嵌套插槽组件
+    const NestedSlotDemo = XRender.Component('NestedSlotDemo', {
+      data() {
+        return {
+          headerData: { 
+            title: '嵌套插槽演示', 
+            subtitle: '展示复杂的插槽嵌套结构' 
+          },
+          contentData: { 
+            label: '内层标签', 
+            description: '这是内层插槽的描述信息' 
+          }
+        };
+      },
+      render(createElem) {
+        return createElem('div', { class: 'nested-slot-demo' },
+          createElem('slot', { name: 'header', data: this.headerData }),
+          createElem('slot', { name: 'content', data: this.contentData })
+        );
+      }
+    });
+
+    // 主应用组件
+    const SlotDemoApp = XRender.Component('SlotDemoApp', {
+      data() {
+        return {
+          currentSlot: 'content1',
+          dynamicData: {
+            message: '',
+            category: 'tech'
+          }
+        };
+      },
+      render(createElem) {
+        return createElem('div', { class: 'slot-demo-container' },
+          createElem('h1', {}, '🎯 XRender 插槽功能完整演示'),
+          
+          // 基础插槽
+          createElem('section', { class: 'demo-section' },
+            createElem('h2', {}, '1. 基础插槽示例'),
+            createElem(BasicSlotDemo, {},
+              createElem('p', {}, '这是插入到默认插槽的内容')
+            )
+          ),
+
+          // 命名插槽
+          createElem('section', { class: 'demo-section' },
+            createElem('h2', {}, '2. 命名插槽示例'),
+            createElem(NamedSlotDemo, {
+              'slot:header': createElem('h3', {}, '这是自定义头部内容'),
+              'slot': createElem('p', {}, '这是主体内容，会插入到默认插槽'),
+              'slot:footer': createElem('p', {}, '这是自定义底部内容')
+            })
+          ),
+
+          // 作用域插槽
+          createElem('section', { class: 'demo-section' },
+            createElem('h2', {}, '3. 作用域插槽示例'),
+            createElem(ScopedSlotDemo, {
+              'slot:item': (props) => {
+                return createElem('div', { class: 'scoped-item' },
+                  createElem('span', { class: 'item-id' }, props.items.id),
+                  createElem('span', { class: 'item-name' }, props.items.name),
+                  createElem('span', { class: 'item-price' }, `¥${props.items.price}`),
+                  createElem('button', {
+                    '@click': () => props.buyItem(props.items)
+                  }, '购买')
+                );
+              }
+            })
+          ),
+
+          // 动态插槽
+          createElem('section', { class: 'demo-section' },
+            createElem('h2', {}, '4. 动态插槽示例'),
+            createElem(DynamicSlotDemo, {
+              ':activeSlot': 'currentSlot',
+              'slot:content1': createElem('div', { class: 'dynamic-content' },
+                createElem('h4', {}, '内容区域 1'),
+                createElem('p', {}, '这是第一个动态内容区域'),
+                createElem('input', {
+                  ':value': 'dynamicData.message',
+                  '@input': (e) => this.dynamicData.message = e.target.value,
+                  placeholder: '输入消息'
+                }),
+                createElem('p', {}, `当前消息: ${this.dynamicData.message}`)
+              ),
+              'slot:content2': createElem('div', { class: 'dynamic-content' },
+                createElem('h4', {}, '内容区域 2'),
+                createElem('p', {}, '这是第二个动态内容区域'),
+                createElem('select', {
+                  ':value': 'dynamicData.category',
+                  '@change': (e) => this.dynamicData.category = e.target.value
+                }, [
+                  createElem('option', { value: 'tech' }, '科技'),
+                  createElem('option', { value: 'life' }, '生活'),
+                  createElem('option', { value: 'news' }, '新闻')
+                ]),
+                createElem('p', {}, `选择分类: ${this.dynamicData.category}`)
+              )
+            }),
+            createElem('div', { class: 'slot-controls' },
+              createElem('button', {
+                '@click': () => this.currentSlot = 'content1'
+              }, '切换到内容1'),
+              createElem('button', {
+                '@click': () => this.currentSlot = 'content2'
+              }, '切换到内容2')
+            )
+          ),
+
+          // 插槽传参
+          createElem('section', { class: 'demo-section' },
+            createElem('h2', {}, '5. 插槽传参示例'),
+            createElem(SlotPropsDemo, {
+              'slot:custom': (props) => {
+                return createElem('div', { class: 'props-slot' },
+                  createElem('h4', {}, props.title),
+                  createElem('p', {}, `用户: ${props.user.name} (${props.user.age}岁)`),
+                  createElem('p', {}, `角色: ${props.user.role}`),
+                  createElem('p', {}, `时间: ${props.timestamp}`),
+                  createElem('div', { class: 'actions' },
+                    createElem('button', {
+                      '@click': () => props.notify('点赞成功!')
+                    }, '点赞'),
+                    createElem('button', {
+                      '@click': () => props.notify('收藏成功!')
+                    }, '收藏'),
+                    createElem('button', {
+                      '@click': () => props.notify('分享成功!')
+                    }, '分享')
+                  )
+                );
+              }
+            })
+          ),
+
+          // 复杂插槽嵌套
+          createElem('section', { class: 'demo-section' },
+            createElem('h2', {}, '6. 复杂插槽嵌套示例'),
+            createElem(NestedSlotDemo, {
+              'slot:header': (headerProps) => {
+                return createElem('div', { class: 'nested-header' },
+                  createElem('h3', {}, headerProps.title),
+                  createElem('p', {}, headerProps.subtitle)
+                );
+              },
+              'slot:content': (contentProps) => {
+                return createElem('div', { class: 'nested-content' },
+                  createElem('p', {}, '主内容区域'),
+                  createElem(NestedSlotDemo, {
+                    'slot:inner': (innerProps) => {
+                      return createElem('div', { class: 'nested-inner' },
+                        createElem('strong', {}, innerProps.label),
+                        createElem('p', {}, innerProps.description)
+                      );
+                    }
+                  })
+                );
+              }
+            })
+          )
+        );
+      }
+    });
+
+    // 启动应用
+    async function initSlotDemo() {
+      try {
+        console.log('XRender 版本:', XRender.Component.version);
+        console.log('XRender.sfc 是否存在:', !!XRender.sfc);
+        
+        // 清理初始状态
+        const statusElement = document.querySelector('.status');
+        if (statusElement) {
+          statusElement.remove();
+        }
+        
+        // 创建并挂载应用
+        const app = new XRender.Component('SlotDemoApp', SlotDemoApp);
+        app.mount('#app');
+        
+        console.log('插槽演示应用启动成功！');
+        
+        // 显示成功状态
+        const mountPoint = document.getElementById('app');
+        const successElement = document.createElement('div');
+        successElement.className = 'status';
+        successElement.textContent = '🎉 插槽演示加载完成！请尝试与页面元素交互';
+        mountPoint.insertBefore(successElement, mountPoint.firstChild);
+        
+      } catch (error) {
+        console.error('插槽演示启动失败:', error);
+        
+        // 显示错误信息
+        const mountPoint = document.getElementById('app');
+        const errorElement = document.createElement('div');
+        errorElement.className = 'error';
+        errorElement.textContent = `插槽演示启动失败: ${error.message}`;
+        mountPoint.appendChild(errorElement);
+      }
+    }
+
+    // 启动演示
+    initSlotDemo();
+  </script>
+</body>
+</html>
