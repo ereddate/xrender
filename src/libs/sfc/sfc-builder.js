@@ -2,7 +2,7 @@
 import { SFCParser } from './sfc-parser.js';
 import { TemplateCompiler } from './template-compiler.js';
 import { StyleProcessor } from './style-processor.js';
-import { XRender } from '../core.js';
+import XRender from '../core.js';
 
 // 检查是否已加载 XRender
 const isXRenderLoaded = () => typeof window !== 'undefined' && window.XRender;
@@ -61,7 +61,8 @@ export class SFCBuilder {
       sfcDescriptor: {
         name: this.descriptor.script?.name || this.name,
         template: this.descriptor.template,
-        scopeId: this._generateScopeId()
+        scopeId: this._generateScopeId(),
+        slots: template?.slots || {} // 添加插槽信息
       },
       render: template ? template.render : null,
       setup: this.descriptor.script ? this._createSetupFunction(this.descriptor.script) : null,
@@ -112,6 +113,84 @@ export class SFCBuilder {
   }
 }
 
+// 异步组件工厂函数
+export function createAsyncComponent(options) {
+  const {
+    loader,
+    loadingComponent = null,
+    errorComponent = null,
+    delay = 200,
+    timeout = 30000
+  } = options;
+
+  return function asyncComponentFactory() {
+    return new Promise((resolve, reject) => {
+      let isLoading = true;
+      let timeoutId = null;
+
+      // 延迟加载显示loading组件
+      if (delay > 0) {
+        setTimeout(() => {
+          if (isLoading && loadingComponent) {
+            resolve(loadingComponent);
+          }
+        }, delay);
+      }
+
+      // 超时处理
+      if (timeout > 0) {
+        timeoutId = setTimeout(() => {
+          if (isLoading && errorComponent) {
+            reject(new Error(`异步组件加载超时 (${timeout}ms)`));
+            resolve(errorComponent);
+          }
+        }, timeout);
+      }
+
+      // 加载组件
+      loader()
+        .then(component => {
+          clearTimeout(timeoutId);
+          isLoading = false;
+          resolve(component);
+        })
+        .catch(error => {
+          clearTimeout(timeoutId);
+          isLoading = false;
+          if (errorComponent) {
+            resolve(errorComponent);
+          } else {
+            reject(error);
+          }
+        });
+    });
+  };
+}
+
+// SFC 异步组件注册函数
+export function registerAsyncSFC(name, options) {
+  const asyncComponent = createAsyncComponent(options);
+  
+  // 创建一个包装组件来处理异步加载
+  return {
+    name,
+    async: true,
+    component: asyncComponent,
+    
+    // 提供组件生命周期钩子
+    created() {
+      // 可以在这里添加加载状态管理
+    },
+    
+    render(createElem) {
+      // 这里会由XRender的异步组件系统处理
+      return createElem('div', { class: 'async-component-loading' }, [
+        'Loading...'
+      ]);
+    }
+  };
+}
+
 // 主要的 SFC 组件注册函数
 export function registerSFC(name, source, options = {}) {
   const parser = new SFCParser(source, options);
@@ -138,4 +217,18 @@ export function loadXRTFromFile(path, options = {}) {
       const name = path.split('/').pop().replace('.xrt', '');
       return registerSFC(name, source, options);
     });
+}
+
+// 异步加载 SFC 文件
+export function loadAsyncSFCFromFile(path, asyncOptions = {}) {
+  const asyncComponent = createAsyncComponent({
+    loader: () => loadXRTFromFile(path),
+    ...asyncOptions
+  });
+  
+  return {
+    name: path.split('/').pop().replace('.xrt', ''),
+    async: true,
+    component: asyncComponent
+  };
 }

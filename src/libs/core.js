@@ -1364,35 +1364,163 @@ export class Component {
     return this.el.outerHTML;
   }
 
-  // 新增过渡动画方法
+  // 增强的过渡动画方法
   applyTransition(el, type, options = {}) {
     if (!this.transition) return;
-    const classes = this.transitionClasses;
-    const duration = options.duration || this.transition.duration || 300; // 默认过渡时间为 300ms
+    
+    const {
+      name = this.transition.name || 'v',
+      duration = this.transition.duration || 300,
+      mode = 'in-out',
+      appear = false,
+      delay = 0,
+      easing = 'ease',
+      classes = {}
+    } = options;
 
-    // 根据过渡名称获取对应的类名
-    const prefix =
-      options.name || this.transition.name
-        ? `${options.name || this.transition.name}-`
-        : "v-";
-    const enterClass = `${prefix}enter`;
-    const enterActiveClass = `${prefix}enter-active`;
-    const leaveClass = `${prefix}leave`;
-    const leaveActiveClass = `${prefix}leave-active`;
+    // 合并自定义类名
+    const transitionClasses = {
+      enter: `${name}-enter`,
+      enterActive: `${name}-enter-active`,
+      enterTo: `${name}-enter-to`,
+      leave: `${name}-leave`,
+      leaveActive: `${name}-leave-active`,
+      leaveTo: `${name}-leave-to`,
+      move: `${name}-move`,
+      moveActive: `${name}-move-active`,
+      ...this.transitionClasses,
+      ...classes
+    };
+
+    const applyWithDelay = (callback) => {
+      if (delay > 0) {
+        setTimeout(callback, delay);
+      } else {
+        callback();
+      }
+    };
 
     if (type === "enter") {
-      el.classList.add(enterClass, enterActiveClass);
-      setTimeout(() => {
-        el.classList.remove(enterClass);
-      }, 0);
-      setTimeout(() => {
-        el.classList.remove(enterActiveClass);
-      }, duration);
+      applyWithDelay(() => {
+        // 设置初始状态
+        el.classList.add(`${name}-enter`, `${name}-enter-from`);
+        el.style.transitionDuration = `${duration}ms`;
+        el.style.transitionTimingFunction = easing;
+        
+        // 触发重绘
+        el.offsetHeight;
+        
+        // 进入动画开始
+        el.classList.remove(`${name}-enter-from`);
+        el.classList.add(`${name}-enter-to`, `${name}-enter-active`);
+        
+        // 清理类名
+        setTimeout(() => {
+          el.classList.remove(
+            `${name}-enter`, 
+            `${name}-enter-to`, 
+            `${name}-enter-active`
+          );
+        }, duration);
+      });
+      
     } else if (type === "leave") {
-      el.classList.add(leaveClass, leaveActiveClass);
+      applyWithDelay(() => {
+        // 设置初始状态
+        el.classList.add(`${name}-leave`, `${name}-leave-from`);
+        el.style.transitionDuration = `${duration}ms`;
+        el.style.transitionTimingFunction = easing;
+        
+        // 触发重绘
+        el.offsetHeight;
+        
+        // 离开动画开始
+        el.classList.remove(`${name}-leave-from`);
+        el.classList.add(`${name}-leave-to`, `${name}-leave-active`);
+        
+        // 清理类名
+        setTimeout(() => {
+          el.classList.remove(
+            `${name}-leave`, 
+            `${name}-leave-to`, 
+            `${name}-leave-active`
+          );
+        }, duration);
+      });
+    }
+  }
+
+  // 过渡组动画方法
+  applyTransitionGroup(elements, type, options = {}) {
+    if (!this.transition) return;
+    
+    const {
+      name = this.transition.name || 'v',
+      duration = this.transition.duration || 300,
+      moveClass = `${name}-move`
+    } = options;
+
+    if (type === "move" && elements.length > 1) {
+      // FLIP (First, Last, Invert, Play) 动画算法
+      const firstRects = Array.from(elements).map(el => ({
+        el,
+        rect: el.getBoundingClientRect()
+      }));
+
+      elements.forEach(el => {
+        el.classList.add(moveClass);
+      });
+
+      requestAnimationFrame(() => {
+        const lastRects = Array.from(elements).map(el => ({
+          el,
+          rect: el.getBoundingClientRect()
+        }));
+
+        firstRects.forEach((first, index) => {
+          const last = lastRects[index];
+          const dx = first.rect.left - last.rect.left;
+          const dy = first.rect.top - last.rect.top;
+
+          if (dx !== 0 || dy !== 0) {
+            // 应用变换
+            first.el.style.transform = `translate(${dx}px, ${dy}px)`;
+            first.el.style.transition = 'transform 0s';
+            
+            // 触发重绘
+            first.el.offsetHeight;
+            
+            // 播放动画
+            first.el.style.transition = `transform ${duration}ms ease`;
+            first.el.style.transform = '';
+            
+            // 清理
+            setTimeout(() => {
+              first.el.style.transition = '';
+              first.el.classList.remove(moveClass);
+            }, duration);
+          }
+        });
+      });
+    }
+  }
+
+  // CSS 动画方法
+  applyCSSAnimation(el, animationName, options = {}) {
+    const {
+      duration = 300,
+      delay = 0,
+      easing = 'ease',
+      fillMode = 'forwards',
+      iterations = 1
+    } = options;
+
+    el.style.animation = `${animationName} ${duration}ms ${easing} ${delay}ms ${iterations} ${fillMode}`;
+    
+    if (fillMode === 'forwards') {
       setTimeout(() => {
-        el.classList.remove(leaveClass, leaveActiveClass);
-      }, duration);
+        el.style.animation = '';
+      }, duration + delay);
     }
   }
 

@@ -1,71 +1,183 @@
-// 基础过渡效果
-.v-leave {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-.v-leave-active {
-    transition: all 0.3s ease;
-    will-change: opacity, transform; // 提升性能
-}
-
+// 基础过渡效果 - 使用更标准的Vue transition类名
+.v-enter-from,
 .v-enter {
     opacity: 0;
     transform: translateY(20px);
 }
 
+.v-enter-to,
 .v-enter-active {
-    transition: all 0.5s ease;
+    opacity: 1;
+    transform: translateY(0);
+    transition: all 0.3s ease;
     will-change: opacity, transform; // 提升性能
 }
 
-// 新增淡入淡出效果
-.fade-leave {
+.v-leave-from,
+.v-leave {
     opacity: 1;
+    transform: translateY(0);
 }
 
-.fade-leave-active {
-    transition: opacity 0.3s ease;
+.v-leave-to,
+.v-leave-active {
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.3s ease;
+    will-change: opacity, transform; // 提升性能
 }
 
+// 淡入淡出效果 - 支持新状态
+.fade-enter-from,
 .fade-enter {
     opacity: 0;
 }
 
+.fade-enter-to,
 .fade-enter-active {
-    transition: opacity 0.5s ease;
+    opacity: 1;
+    transition: opacity 0.3s ease;
 }
 
-// 新增缩放效果
-.scale-leave {
-    transform: scale(1);
+.fade-leave-from,
+.fade-leave {
+    opacity: 1;
 }
 
-.scale-leave-active {
-    transition: transform 0.3s ease;
+.fade-leave-to,
+.fade-leave-active {
+    opacity: 0;
+    transition: opacity 0.3s ease;
 }
 
+// 缩放效果 - 支持新状态
+.scale-enter-from,
 .scale-enter {
     transform: scale(0.8);
+    opacity: 0;
 }
 
+.scale-enter-to,
 .scale-enter-active {
-    transition: transform 0.5s ease;
+    transform: scale(1);
+    opacity: 1;
+    transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
-// 新增滑动效果
+.scale-leave-from,
+.scale-leave {
+    transform: scale(1);
+    opacity: 1;
+}
+
+.scale-leave-to,
+.scale-leave-active {
+    transform: scale(0.8);
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+// 滑动效果 - 支持新状态
+.slide-enter-from,
+.slide-enter {
+    transform: translateX(100%);
+    opacity: 0;
+}
+
+.slide-enter-to,
+.slide-enter-active {
+    transform: translateX(0);
+    opacity: 1;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.slide-leave-from,
 .slide-leave {
     transform: translateX(0);
+    opacity: 1;
 }
 
+.slide-leave-to,
 .slide-leave-active {
+    transform: translateX(-100%);
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+// 过渡组移动效果
+.v-move,
+.fade-move,
+.scale-move,
+.slide-move {
     transition: transform 0.3s ease;
 }
 
-.slide-enter {
-    transform: translateX(100%);
+// 弹跳动画
+@keyframes bounce-in {
+    0% {
+        transform: scale(0.3);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.05);
+        opacity: 0.8;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
-.slide-enter-active {
-    transition: transform 0.5s ease;
+@keyframes bounce-out {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    25% {
+        transform: scale(1.05);
+        opacity: 0.8;
+    }
+    100% {
+        transform: scale(0.3);
+        opacity: 0;
+    }
+}
+
+.bounce-enter-active {
+    animation: bounce-in 0.6s ease both;
+}
+
+.bounce-leave-active {
+    animation: bounce-out 0.6s ease both;
+}
+
+// 旋转动画
+@keyframes rotate-in {
+    from {
+        transform: rotate(-200deg);
+        opacity: 0;
+    }
+    to {
+        transform: rotate(0);
+        opacity: 1;
+    }
+}
+
+@keyframes rotate-out {
+    from {
+        transform: rotate(0);
+        opacity: 1;
+    }
+    to {
+        transform: rotate(200deg);
+        opacity: 0;
+    }
+}
+
+.rotate-enter-active {
+    animation: rotate-in 0.6s ease both;
+}
+
+.rotate-leave-active {
+    animation: rotate-out 0.6s ease both;
 }
