@@ -20,6 +20,7 @@ XRender is a lightweight front-end framework focused on component-based developm
 - **AJAX Support**: Supports AJAX requests and data fetching.
 - **MOCK Support**: Supports mock data and testing environments.
 - **Mobile Adaptation**: Supports mobile adaptation and responsive design.
+- **SFC Support**: Supports Single File Components (.xrt) development, encapsulating templates, scripts, and styles in a single file.
 
 ## Quick Start
 
@@ -89,6 +90,209 @@ Each module generates a `latest` directory pointing to the current latest versio
 import XRender from 'xrender/core/latest/xrender.es.js';
 import { Router } from 'xrender/router/latest/xrender-router.es.js';
 import { Store } from 'xrender/store/latest/xrender-store.es.js';
+```
+
+## Single File Components (SFC)
+
+XRender supports Single File Components (SFC) development, allowing you to encapsulate a component's template, script, and styles in a single file with the `.xrt` file extension.
+
+### Initializing SFC Support
+
+Before using SFC components, you need to initialize SFC support:
+
+```javascript
+import { initSFC } from 'xrender/sfc/latest/xrender-sfc.es.js';
+
+// Initialize SFC support
+initSFC(XRender);
+```
+
+### Basic Example
+
+Here's a basic `.xrt` file example:
+
+```html
+<template>
+  <div class="counter-container">
+    <h1>{{ title }}</h1>
+    <div class="counter-display">
+      <span>{{ count }}</span>
+    </div>
+    <div class="counter-controls">
+      <button @click="decrement">-</button>
+      <button @click="reset">Reset</button>
+      <button @click="increment">+</button>
+    </div>
+  </div>
+</template>
+
+<script>
+  // SFC script section using Composition API
+  
+  export default {
+    name: 'Counter',
+    setup() {
+      // Using ref to create reactive state
+      const count = ref(0);
+      const title = ref('My Counter');
+      
+      // Methods
+      const increment = () => {
+        count.value++;
+      };
+      
+      const decrement = () => {
+        count.value--;
+      };
+      
+      const reset = () => {
+        count.value = 0;
+      };
+      
+      // Return state and methods
+      return {
+        count,
+        title,
+        increment,
+        decrement,
+        reset
+      };
+    }
+  };
+</script>
+
+<style>
+  .counter-container {
+    max-width: 300px;
+    margin: 0 auto;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background-color: #f5f5f5;
+  }
+  
+  h1 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 20px;
+  }
+  
+  .counter-display {
+    background-color: white;
+    border-radius: 4px;
+    padding: 20px;
+    text-align: center;
+    font-size: 2em;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 20px;
+  }
+  
+  .counter-controls {
+    display: flex;
+    justify-content: space-between;
+  }
+  
+  button {
+    padding: 10px 20px;
+    font-size: 1em;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  button:hover {
+    background-color: #ddd;
+  }
+</style>
+```
+
+### Loading SFC Components
+
+There are two ways to load SFC components:
+
+#### 1. Registering from a string
+
+```javascript
+import { registerSFC } from 'xrender/sfc/latest/xrender-sfc.es.js';
+
+const sfcSource = `
+<template>
+  <div>{{ message }}</div>
+</template>
+
+<script>
+  export default {
+    setup() {
+      const message = ref('Hello, XRender!');
+      return { message };
+    }
+  };
+</script>
+`;
+
+registerSFC('MyComponent', sfcSource);
+```
+
+#### 2. Loading from a .xrt file
+
+```javascript
+import { loadXRTFromFile } from 'xrender/sfc/latest/xrender-sfc.es.js';
+
+// Load component from file
+const component = await loadXRTFromFile('./components/MyComponent.xrt');
+```
+
+### Using SFC Components in Your App
+
+Registered SFC components can be used like regular components:
+
+```javascript
+const App = $.component('App', {
+  render(createElem) {
+    return createElem('div', {}, [
+      createElem('MyComponent')
+    ]);
+  }
+});
+
+$.createApp({ App }).$mount('#app');
+```
+
+### Style Scoping
+
+By default, styles in SFC components are scoped, meaning styles only apply to elements in the current component:
+
+```html
+<style scoped>
+  .component-specific-class {
+    /* Only applies in current component */
+  }
+</style>
+```
+
+### Lifecycle Hooks
+
+SFC components support all standard lifecycle hooks:
+
+```html
+<script>
+  export default {
+    setup() {
+      // Component logic
+      return {};
+    },
+    
+    onMounted() {
+      console.log('Component mounted');
+    },
+    
+    onUpdated() {
+      console.log('Component updated');
+    }
+  };
+</script>
 ```
 
 ## Version Management

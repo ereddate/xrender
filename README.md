@@ -20,6 +20,7 @@ XRender 是一个轻量级的前端框架，专注于组件化开发和数据驱
 - **AJAX 支持**：支持 AJAX 请求和数据获取。
 - **MOCK 支持**：支持模拟数据和测试环境。
 - **移动端适配**：支持移动端适配和响应式设计。
+- **SFC 支持**：支持单文件组件（.xrt）开发，将模板、脚本和样式封装在单一文件中。
 
 ## 快速开始
 
@@ -89,6 +90,209 @@ XRender.createApp({ router, store, i18n, App }).$mount('#app');
 import XRender from 'xrender/core/latest/xrender.es.js';
 import { Router } from 'xrender/router/latest/xrender-router.es.js';
 import { Store } from 'xrender/store/latest/xrender-store.es.js';
+```
+
+## 单文件组件 (SFC)
+
+XRender 支持单文件组件（SFC）开发，允许将组件的模板、脚本和样式封装在单一文件中，使用 `.xrt` 文件扩展名。
+
+### 初始化 SFC 功能
+
+在使用 SFC 组件之前，需要先初始化 SFC 功能：
+
+```javascript
+import { initSFC } from 'xrender/sfc/latest/xrender-sfc.es.js';
+
+// 初始化 SFC 功能
+initSFC(XRender);
+```
+
+### 基本示例
+
+以下是一个基本的 `.xrt` 文件示例：
+
+```html
+<template>
+  <div class="counter-container">
+    <h1>{{ title }}</h1>
+    <div class="counter-display">
+      <span>{{ count }}</span>
+    </div>
+    <div class="counter-controls">
+      <button @click="decrement">-</button>
+      <button @click="reset">重置</button>
+      <button @click="increment">+</button>
+    </div>
+  </div>
+</template>
+
+<script>
+  // SFC 脚本部分，使用组合式 API
+  
+  export default {
+    name: 'Counter',
+    setup() {
+      // 使用 ref 创建响应式状态
+      const count = ref(0);
+      const title = ref('我的计数器');
+      
+      // 方法
+      const increment = () => {
+        count.value++;
+      };
+      
+      const decrement = () => {
+        count.value--;
+      };
+      
+      const reset = () => {
+        count.value = 0;
+      };
+      
+      // 返回状态和方法
+      return {
+        count,
+        title,
+        increment,
+        decrement,
+        reset
+      };
+    }
+  };
+</script>
+
+<style>
+  .counter-container {
+    max-width: 300px;
+    margin: 0 auto;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background-color: #f5f5f5;
+  }
+  
+  h1 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 20px;
+  }
+  
+  .counter-display {
+    background-color: white;
+    border-radius: 4px;
+    padding: 20px;
+    text-align: center;
+    font-size: 2em;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 20px;
+  }
+  
+  .counter-controls {
+    display: flex;
+    justify-content: space-between;
+  }
+  
+  button {
+    padding: 10px 20px;
+    font-size: 1em;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  button:hover {
+    background-color: #ddd;
+  }
+</style>
+```
+
+### 加载 SFC 组件
+
+有两种方式可以加载 SFC 组件：
+
+#### 1. 从字符串直接注册
+
+```javascript
+import { registerSFC } from 'xrender/sfc/latest/xrender-sfc.es.js';
+
+const sfcSource = `
+<template>
+  <div>{{ message }}</div>
+</template>
+
+<script>
+  export default {
+    setup() {
+      const message = ref('Hello, XRender!');
+      return { message };
+    }
+  };
+</script>
+`;
+
+registerSFC('MyComponent', sfcSource);
+```
+
+#### 2. 从 .xrt 文件加载
+
+```javascript
+import { loadXRTFromFile } from 'xrender/sfc/latest/xrender-sfc.es.js';
+
+// 从文件加载组件
+const component = await loadXRTFromFile('./components/MyComponent.xrt');
+```
+
+### 在应用中使用 SFC 组件
+
+注册后的 SFC 组件可以像普通组件一样使用：
+
+```javascript
+const App = $.component('App', {
+  render(createElem) {
+    return createElem('div', {}, [
+      createElem('MyComponent')
+    ]);
+  }
+});
+
+$.createApp({ App }).$mount('#app');
+```
+
+### 样式作用域
+
+默认情况下，SFC 组件中的样式是作用域化的，样式只会应用到当前组件的元素上：
+
+```html
+<style scoped>
+  .component-specific-class {
+    /* 只会在当前组件中生效 */
+  }
+</style>
+```
+
+### 生命周期钩子
+
+SFC 组件支持所有标准的生命周期钩子：
+
+```html
+<script>
+  export default {
+    setup() {
+      // 组件逻辑
+      return {};
+    },
+    
+    onMounted() {
+      console.log('组件已挂载');
+    },
+    
+    onUpdated() {
+      console.log('组件已更新');
+    }
+  };
+</script>
 ```
 
 ## 版本管理
