@@ -1,0 +1,17 @@
+// 变量文件（必须最先导入）
+@use "variables";
+
+// 混合宏文件
+@use "mixins";
+
+// 基础样式
+@use "base";
+
+// 组件样式
+@use "components";
+
+// 实用工具类
+@use "utilities";
+
+// 过渡效果（已有文件保留）
+@use "transition";
