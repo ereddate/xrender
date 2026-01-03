@@ -12,31 +12,72 @@ const createElement = function (tagName) {
 const on = function (elem, eventName, handler, namespace) {
   if (!elem._eventDelegation) {
     elem._eventDelegation = {};
-    elem.addEventListener(eventName, function (e) {
-      const handlers = elem._eventDelegation[eventName];
-      if (handlers) {
-        handlers.forEach((h) => {
-          if (!namespace || h.namespace === namespace) {
-            h.handler(e);
-          }
-        });
-      }
-    });
+    elem._eventListenerMap = new Map();
   }
 
   if (!elem._eventDelegation[eventName]) {
     elem._eventDelegation[eventName] = [];
+    
+    const eventHandler = function (e) {
+      const handlers = elem._eventDelegation[eventName];
+      if (handlers) {
+        for (let i = 0; i < handlers.length; i++) {
+          const h = handlers[i];
+          if (!namespace || h.namespace === namespace) {
+            h.handler(e);
+          }
+        }
+      }
+    };
+    
+    elem.addEventListener(eventName, eventHandler);
+    elem._eventListenerMap.set(eventName, eventHandler);
   }
-  elem._eventDelegation[eventName].push({ handler, namespace });
+
+  const handlers = elem._eventDelegation[eventName];
+  for (let i = 0; i < handlers.length; i++) {
+    const h = handlers[i];
+    if (h.handler === handler && h.namespace === namespace) {
+      return;
+    }
+  }
+  
+  elem._eventDelegation[eventName].push({ handler, namespace, refCount: 1 });
 };
 const off = function (elem, eventName, namespace) {
   if (elem._eventDelegation && elem._eventDelegation[eventName]) {
     if (namespace) {
-      elem._eventDelegation[eventName] = elem._eventDelegation[
-        eventName
-      ].filter((h) => h.namespace !== namespace);
+      const handlers = elem._eventDelegation[eventName];
+      for (let i = handlers.length - 1; i >= 0; i--) {
+        const h = handlers[i];
+        if (h.namespace === namespace) {
+          h.refCount--;
+          if (h.refCount <= 0) {
+            handlers.splice(i, 1);
+          }
+        }
+      }
+      
+      if (elem._eventDelegation[eventName].length === 0) {
+        const eventHandler = elem._eventListenerMap?.get(eventName);
+        if (eventHandler) {
+          elem.removeEventListener(eventName, eventHandler);
+          elem._eventListenerMap.delete(eventName);
+        }
+        delete elem._eventDelegation[eventName];
+      }
     } else {
+      const eventHandler = elem._eventListenerMap?.get(eventName);
+      if (eventHandler) {
+        elem.removeEventListener(eventName, eventHandler);
+        elem._eventListenerMap.delete(eventName);
+      }
       delete elem._eventDelegation[eventName];
+    }
+    
+    if (Object.keys(elem._eventDelegation).length === 0) {
+      delete elem._eventDelegation;
+      delete elem._eventListenerMap;
     }
   }
 };
@@ -144,7 +185,7 @@ const elemAttrs = function (elem, attributes) {
         if (modifiers.includes("stop")) e.stopPropagation();
         if (modifiers.includes("prevent")) e.preventDefault();
         if (modifiers.includes("once")) {
-          elem.removeEventListener(key.slice(1), this);
+          off(elem, eventName, that.name);
         }
         if (modifiers.includes("self")) {
           if (e.target !== this) return;
@@ -156,9 +197,16 @@ const elemAttrs = function (elem, attributes) {
           that.methods[value].call(that, e);
         }
       };
-      (XRender.on || on)(elem, eventName, handler);
-      that._eventHandlers = that._eventHandlers || [];
-      that._eventHandlers.push({ elem, eventName, handler });
+      (XRender.on || on)(elem, eventName, handler, that.name);
+      
+      const eventKey = `${eventName}:${that.name}`;
+      that._eventHandlers.set(eventKey, { elem, eventName, handler, namespace: that.name });
+      
+      const cleanup = () => {
+        off(elem, eventName, that.name);
+        that._eventHandlers.delete(eventKey);
+      };
+      that._eventCleanup.add(cleanup);
     } else if (key === "slot") {
       const slotName = value || "default";
       const slotContent = that.$slots[slotName];
@@ -522,13 +570,11 @@ export class VDOMUtils {
   // 创建真实DOM元素
   static createElement(vnode) {
     if (typeof vnode === 'string' || typeof vnode === 'number') {
-      // 处理文本节点
       const textNode = doc.createTextNode(vnode);
       return textNode;
     }
     
     if (vnode.tag === '#text') {
-      // 处理文本节点
       const textNode = doc.createTextNode(vnode.children.join(''));
       vnode.el = textNode;
       return textNode;
@@ -536,15 +582,12 @@ export class VDOMUtils {
     
     const element = createElement(vnode.tag);
     
-    // 设置属性
     this.setElementAttributes(element, vnode.attrs);
     
-    // 处理静态节点标记
     if (vnode.isStatic) {
       element.setAttribute('data-static', 'true');
     }
     
-    // 处理子节点
     if (vnode.children && vnode.children.length > 0) {
       vnode.children.forEach(child => {
         const childElement = this.createElement(child);
@@ -552,19 +595,16 @@ export class VDOMUtils {
       });
     }
     
-    // 保存真实DOM引用
     vnode.el = element;
     
     return element;
   }
   
-  // 设置元素属性
   static setElementAttributes(element, attrs) {
     if (!attrs) return;
     
     Object.entries(attrs).forEach(([key, value]) => {
       if (key === 'style') {
-        // 处理样式对象
         if (typeof value === 'object') {
           Object.entries(value).forEach(([styleKey, styleValue]) => {
             element.style[styleKey] = styleValue;
@@ -573,39 +613,39 @@ export class VDOMUtils {
           element.setAttribute('style', value);
         }
       } else if (key.startsWith('on')) {
-        // 处理事件
         const eventName = key.slice(2).toLowerCase();
+        if (!element._eventHandlers) {
+          element._eventHandlers = new Map();
+        }
+        const handlerKey = `${eventName}:default`;
+        if (element._eventHandlers.has(handlerKey)) {
+          const oldHandler = element._eventHandlers.get(handlerKey);
+          element.removeEventListener(eventName, oldHandler);
+        }
         element.addEventListener(eventName, value);
+        element._eventHandlers.set(handlerKey, value);
       } else if (key === 'class' || key === 'className') {
-        // 处理类名
         element.className = value;
       } else if (key === 'static' || key === 'isStatic') {
-        // 处理静态节点标记
         if (value) {
           element.setAttribute('data-static', 'true');
         }
       } else {
-        // 处理普通属性
         element.setAttribute(key, value);
       }
     });
   }
   
-  // 虚拟DOM差异算法 (diff)
   static diff(oldVnode, newVnode, parentEl, index) {
-    // 如果新旧节点完全相同，直接返回
     if (oldVnode === newVnode) return oldVnode.el;
     
-    // 如果节点类型不同，直接替换
     if (!this.isSameNodeType(oldVnode, newVnode)) {
       const newEl = this.createElement(newVnode);
-      // 使用传入的parentEl和index进行替换，确保安全操作
       if (parentEl && index !== undefined) {
         const targetNode = parentEl.childNodes[index];
         if (targetNode && targetNode.parentNode === parentEl) {
           parentEl.replaceChild(newEl, targetNode);
         } else {
-          // 如果指定索引处没有节点或节点不在正确位置，尝试使用oldVnode.el
           if (oldVnode.el && oldVnode.el.parentNode === parentEl) {
             parentEl.replaceChild(newEl, oldVnode.el);
           } else if (oldVnode.el && oldVnode.el.parentNode) {
@@ -620,18 +660,15 @@ export class VDOMUtils {
       return newEl;
     }
     
-    // 如果是文本节点
     if (typeof oldVnode === 'string' || typeof oldVnode === 'number' || 
         typeof newVnode === 'string' || typeof newVnode === 'number') {
       if (oldVnode !== newVnode) {
         const textNode = doc.createTextNode(newVnode);
-        // 使用传入的parentEl和index进行替换，确保安全操作
         if (parentEl && index !== undefined) {
           const targetNode = parentEl.childNodes[index];
           if (targetNode && targetNode.parentNode === parentEl) {
             parentEl.replaceChild(textNode, targetNode);
           } else {
-            // 如果指定索引处没有节点或节点不在正确位置，尝试使用oldVnode.el
             if (oldVnode.el && oldVnode.el.parentNode === parentEl) {
               parentEl.replaceChild(textNode, oldVnode.el);
             } else if (oldVnode.el && oldVnode.el.parentNode) {
@@ -648,14 +685,37 @@ export class VDOMUtils {
       return oldVnode.el || (parentEl && index !== undefined ? parentEl.childNodes[index] : null);
     }
     
-    // 更新元素属性
+    if (newVnode.isStatic && oldVnode.isStatic) {
+      return oldVnode.el;
+    }
+    
     this.updateElementAttributes(oldVnode.el, oldVnode.attrs, newVnode.attrs);
     
-    // 更新子节点 - 检查是否有key，决定使用哪种diff算法
     if (oldVnode.el) {
-      // 检查子节点是否有key，如果有则使用keyed diff
-      const hasKeyedChildren = (oldVnode.children || []).some(child => child.key !== undefined) || 
-                               (newVnode.children || []).some(child => child.key !== undefined);
+      const oldChildren = oldVnode.children || [];
+      const newChildren = newVnode.children || [];
+      
+      if (oldChildren.length === 0 && newChildren.length === 0) {
+        return oldVnode.el;
+      }
+      
+      if (oldChildren.length === 0) {
+        for (let i = 0; i < newChildren.length; i++) {
+          const newEl = this.createElement(newChildren[i]);
+          parentEl.appendChild(newEl);
+        }
+        return oldVnode.el;
+      }
+      
+      if (newChildren.length === 0) {
+        while (parentEl.firstChild) {
+          parentEl.removeChild(parentEl.firstChild);
+        }
+        return oldVnode.el;
+      }
+      
+      const hasKeyedChildren = oldChildren.some(child => child.key !== undefined) || 
+                               newChildren.some(child => child.key !== undefined);
       if (hasKeyedChildren) {
         this.keyedDiffChildren(oldVnode, newVnode, oldVnode.el);
       } else {
@@ -666,7 +726,6 @@ export class VDOMUtils {
     return oldVnode.el;
   }
   
-  // 判断节点类型是否相同
   static isSameNodeType(node1, node2) {
     if (typeof node1 !== typeof node2) return false;
     if (typeof node1 === 'string' || typeof node1 === 'number') return true;
@@ -676,77 +735,84 @@ export class VDOMUtils {
     return false;
   }
   
-  // 更新元素属性
   static updateElementAttributes(element, oldAttrs, newAttrs) {
     if (!oldAttrs) oldAttrs = {};
     if (!newAttrs) newAttrs = {};
     
-    // 获取所有需要处理的属性键
-    const allKeys = new Set([...Object.keys(oldAttrs), ...Object.keys(newAttrs)]);
+    const oldKeys = Object.keys(oldAttrs);
+    const newKeys = Object.keys(newAttrs);
     
-    allKeys.forEach(key => {
-      const oldValue = oldAttrs[key];
-      const newValue = newAttrs[key];
-      
-      // 如果新值不存在，移除属性
-      if (newValue === undefined) {
+    for (let i = 0; i < oldKeys.length; i++) {
+      const key = oldKeys[i];
+      if (!(key in newAttrs)) {
         if (key.startsWith('on')) {
           const eventName = key.slice(2).toLowerCase();
-          element.removeEventListener(eventName, oldValue);
+          if (element._eventHandlers) {
+            const handlerKey = `${eventName}:default`;
+            const oldHandler = element._eventHandlers.get(handlerKey);
+            if (oldHandler) {
+              element.removeEventListener(eventName, oldHandler);
+              element._eventHandlers.delete(handlerKey);
+            }
+          }
         } else {
           element.removeAttribute(key);
         }
-      } 
-      // 如果旧值不存在，添加属性
-      else if (oldValue === undefined) {
-        if (key.startsWith('on')) {
-          const eventName = key.slice(2).toLowerCase();
-          element.addEventListener(eventName, newValue);
-        } else if (key === 'style') {
-          // 更新样式
-          if (typeof newValue === 'object') {
-            Object.entries(newValue).forEach(([styleKey, styleValue]) => {
-              element.style[styleKey] = styleValue;
-            });
-          } else {
-            element.setAttribute('style', newValue);
-          }
-        } else {
-          element.setAttribute(key, newValue);
-        }
-      } 
-      // 如果值不同，更新属性
-      else if (oldValue !== newValue) {
-        if (key.startsWith('on')) {
-          const eventName = key.slice(2).toLowerCase();
-          element.removeEventListener(eventName, oldValue);
-          element.addEventListener(eventName, newValue);
-        } else if (key === 'style') {
-          // 更新样式
-          if (typeof newValue === 'object') {
-            // 清除旧样式
-            if (typeof oldValue === 'object') {
-              Object.keys(oldValue).forEach(styleKey => {
-                if (!(styleKey in newValue)) {
-                  element.style[styleKey] = '';
-                }
-              });
-            }
-            // 设置新样式
-            Object.entries(newValue).forEach(([styleKey, styleValue]) => {
-              element.style[styleKey] = styleValue;
-            });
-          } else {
-            element.setAttribute('style', newValue);
-          }
-        } else {
-          element.setAttribute(key, newValue);
-        }
       }
-    });
+    }
+    
+    for (let i = 0; i < newKeys.length; i++) {
+      const key = newKeys[i];
+      const oldValue = oldAttrs[key];
+      const newValue = newAttrs[key];
+      
+      if (oldValue === newValue) continue;
+      
+      if (key.startsWith('on')) {
+        const eventName = key.slice(2).toLowerCase();
+        if (!element._eventHandlers) {
+          element._eventHandlers = new Map();
+        }
+        const handlerKey = `${eventName}:default`;
+        
+        if (oldValue !== undefined) {
+          const oldHandler = element._eventHandlers.get(handlerKey);
+          if (oldHandler) {
+            element.removeEventListener(eventName, oldHandler);
+          }
+        }
+        
+        element.addEventListener(eventName, newValue);
+        element._eventHandlers.set(handlerKey, newValue);
+      } else if (key === 'style') {
+        if (typeof newValue === 'object') {
+          if (typeof oldValue === 'object') {
+            const oldStyleKeys = Object.keys(oldValue);
+            for (let j = 0; j < oldStyleKeys.length; j++) {
+              const styleKey = oldStyleKeys[j];
+              if (!(styleKey in newValue)) {
+                element.style[styleKey] = '';
+              }
+            }
+          }
+          const newStyleEntries = Object.entries(newValue);
+          for (let j = 0; j < newStyleEntries.length; j++) {
+            const [styleKey, styleValue] = newStyleEntries[j];
+            element.style[styleKey] = styleValue;
+          }
+        } else {
+          element.setAttribute('style', newValue);
+        }
+      } else if (key === 'class' || key === 'className') {
+        if (element.className !== newValue) {
+          element.className = newValue;
+        }
+      } else {
+        element.setAttribute(key, newValue);
+      }
+    }
   }
   
-  // 对比子节点
   static diffChildren(oldVnode, newVnode, parentEl) {
     const oldChildren = oldVnode.children || [];
     const newChildren = newVnode.children || [];
@@ -758,26 +824,21 @@ export class VDOMUtils {
       const newChild = newChildren[i];
       
       if (oldChild === undefined) {
-        // 新增节点
         const newEl = this.createElement(newChild);
         parentEl.appendChild(newEl);
       } else if (newChild === undefined) {
-        // 删除节点
         if (oldChild.el && oldChild.el.parentNode) {
           oldChild.el.parentNode.removeChild(oldChild.el);
         }
       } else {
-        // 更新节点
         this.diff(oldChild, newChild, parentEl, i);
       }
     }
   }
   
-  // 使用key优化的diff算法
   static keyedDiff(oldVnode, newVnode, parentEl) {
     if (!oldVnode || !newVnode) return;
     
-    // 如果是文本节点或类型不同，直接替换
     if (typeof oldVnode !== typeof newVnode || 
         (oldVnode.tag && newVnode.tag && oldVnode.tag !== newVnode.tag)) {
       const newEl = this.createElement(newVnode);
@@ -785,14 +846,11 @@ export class VDOMUtils {
       return;
     }
     
-    // 更新节点属性
     this.updateElementAttributes(oldVnode.el, oldVnode.attrs, newVnode.attrs);
     
-    // 对子节点进行keyed diff
     this.keyedDiffChildren(oldVnode, newVnode, parentEl);
   }
   
-  // 使用key优化的子节点diff
   static keyedDiffChildren(oldVnode, newVnode, parentEl) {
     const oldChildren = oldVnode.children || [];
     const newChildren = newVnode.children || [];
@@ -808,7 +866,6 @@ export class VDOMUtils {
     let newEndVnode = newChildren[newEndIdx];
     
     const oldKeyMap = {};
-    // 构建旧节点的key映射
     for (let i = 0; i <= oldEndIdx; i++) {
       const key = oldChildren[i].key;
       if (key) {
@@ -822,17 +879,14 @@ export class VDOMUtils {
       } else if (!oldEndVnode) {
         oldEndVnode = oldChildren[--oldEndIdx];
       } else if (this.isSameKey(oldStartVnode, newStartVnode)) {
-        // 头头相同，更新节点
         this.diff(oldStartVnode, newStartVnode, parentEl, oldStartIdx);
         oldStartVnode = oldChildren[++oldStartIdx];
         newStartVnode = newChildren[++newStartIdx];
       } else if (this.isSameKey(oldEndVnode, newEndVnode)) {
-        // 尾尾相同，更新节点
         this.diff(oldEndVnode, newEndVnode, parentEl, oldEndIdx);
         oldEndVnode = oldChildren[--oldEndIdx];
         newEndVnode = newChildren[--newEndIdx];
       } else if (this.isSameKey(oldStartVnode, newEndVnode)) {
-        // 头尾相同，移动节点
         if (oldStartVnode.el && oldStartVnode.el.parentNode === parentEl) {
           parentEl.insertBefore(oldStartVnode.el, oldEndVnode.el.nextSibling);
         }
@@ -840,7 +894,6 @@ export class VDOMUtils {
         oldStartVnode = oldChildren[++oldStartIdx];
         newEndVnode = newChildren[--newEndIdx];
       } else if (this.isSameKey(oldEndVnode, newStartVnode)) {
-        // 尾头相同，移动节点
         if (oldEndVnode.el && oldEndVnode.el.parentNode === parentEl) {
           parentEl.insertBefore(oldEndVnode.el, oldStartVnode.el);
         }
@@ -848,10 +901,8 @@ export class VDOMUtils {
         oldEndVnode = oldChildren[--oldEndIdx];
         newStartVnode = newChildren[++newStartIdx];
       } else {
-        // 没有找到相同的节点，尝试使用key查找
         const idxInOld = oldKeyMap[newStartVnode.key];
         if (idxInOld === undefined) {
-          // 新增节点
           const newEl = this.createElement(newStartVnode);
           if (oldStartVnode && oldStartVnode.el) {
             parentEl.insertBefore(newEl, oldStartVnode.el);
@@ -860,7 +911,6 @@ export class VDOMUtils {
           }
           newStartVnode = newChildren[++newStartIdx];
         } else {
-          // 移动节点
           const movedVnode = oldChildren[idxInOld];
           if (movedVnode.el && movedVnode.el.parentNode === parentEl) {
             if (oldStartVnode && oldStartVnode.el) {
@@ -876,7 +926,6 @@ export class VDOMUtils {
       }
     }
     
-    // 处理剩余的旧节点
     while (oldStartIdx <= oldEndIdx) {
       if (oldStartVnode) {
         if (oldStartVnode.el && oldStartVnode.el.parentNode === parentEl) {
@@ -889,7 +938,6 @@ export class VDOMUtils {
       }
     }
     
-    // 处理剩余的新节点
     while (newStartIdx <= newEndIdx) {
       const newEl = this.createElement(newChildren[newStartIdx]);
       if (oldStartIdx <= oldEndIdx && oldStartVnode && oldStartVnode.el) {
@@ -901,7 +949,6 @@ export class VDOMUtils {
     }
   }
   
-  // 判断两个节点是否具有相同的key
   static isSameKey(vnode1, vnode2) {
     return vnode1.key === vnode2.key;
   }
@@ -1088,6 +1135,19 @@ export class Component {
     if (options?.render) {
       this.render = options.render.bind(this);
     }
+    
+    // 新增性能优化属性
+    this._dirty = false;
+    this._pendingUpdate = false;
+    this._lastRenderResult = null;
+    this._renderMemo = new Map();
+    this._shouldComponentUpdate = options?.shouldComponentUpdate || null;
+    this._updateScheduled = false;
+    
+    // 新增事件处理器追踪
+    this._eventHandlers = new Map();
+    this._eventCleanup = new Set();
+    this._isDestroyed = false;
     
     return this;
   }
@@ -2170,9 +2230,24 @@ export class Component {
       if (this.el.getAttribute("data-static") === "true") {
         return;
       }
-      if (this._cacheKey) {
-        this.cache(this._cacheKey);
+      
+      // 防止重复调度更新
+      if (this._updateScheduled) {
+        return;
       }
+      
+      // 检查是否需要更新
+      if (this._shouldComponentUpdate) {
+        const shouldUpdate = this._shouldComponentUpdate.call(this, this.data, this.props);
+        if (!shouldUpdate) {
+          return;
+        }
+      }
+      
+      // 标记为脏，需要更新
+      this._dirty = true;
+      
+      // 批量更新
       this.batchUpdate((fragment) => {
         // 调用 onBeforeUpdate 钩子（需要设置 currentInstance）
         setCurrentInstance(that);
@@ -2201,6 +2276,10 @@ export class Component {
               that.vnode = newVnode;
               that.el = VDOMUtils.createElement(that.vnode);
             }
+            
+            // 清除脏标记
+            that._dirty = false;
+            that._updateScheduled = false;
             
             // 调用 onUpdated 钩子（需要设置 currentInstance）
             setCurrentInstance(that);
@@ -2238,95 +2317,106 @@ export class Component {
 
   unmount() {
     const that = this;
+    if (this._isDestroyed) {
+      return;
+    }
+    
+    this._isDestroyed = true;
+    
     if (this.transition) {
-      // 应用离开过渡
       this.applyTransition(this.el, "leave");
       setTimeout(() => {
-        // 调用 beforeUnmount 钩子
-        that.beforeUnmount?.call(that);
-
-        // 清理事件监听器
-        if (that._eventHandlers) {
-          that._eventHandlers.forEach(({ elem, eventName, handler }) => {
-            elem.removeEventListener(eventName, handler);
-          });
-          that._eventHandlers = null;
-        }
-
-        // 调用指令的 unbind 钩子
-        Object.entries(XRender.directives).forEach(([name, directive]) => {
-          directive.unbind?.(this.el, this);
-        });
-
-        // 清理 DOM 元素
-        if (that.el && that.el.parentNode) {
-          that.el.parentNode.removeChild(that.el);
-        }
-
-        // 清理数据观察
-        that.data = null;
-
-        // 清理计算属性
-        that.computed = null;
-
-        // 清理方法
-        that.methods = null;
-
-        // 清理 watch
-        that.watch = null;
-
-        // 清理 slots
-        that.$slots = null;
-
-        // 标记为未挂载
-        that.isMounted = false;
-
-        // 清理父组件引用
-        that.parent = null;
-        this._cleanupContextSubscriptions(); // 清理上下文订阅
+        that._performUnmount();
       }, this.transition.duration || 300);
     } else {
-      // 调用 beforeUnmount 钩子
-      this.beforeUnmount?.call(this);
-
-      // 清理事件监听器
-      if (this._eventHandlers) {
-        this._eventHandlers.forEach(({ elem, eventName, handler }) => {
-          elem.removeEventListener(eventName, handler);
-        });
-        this._eventHandlers = null;
-      }
-      // 调用指令的 unbind 钩子
-      Object.entries(XRender.directives).forEach(([name, directive]) => {
-        directive.unbind?.(this.el, this);
-      });
-      // 清理 DOM 元素
-      if (this.el && this.el.parentNode) {
-        this.el.parentNode.removeChild(this.el);
-      }
-
-      // 清理数据观察
-      this.data = null;
-
-      // 清理计算属性
-      this.computed = null;
-
-      // 清理方法
-      this.methods = null;
-
-      // 清理 watch
-      this.watch = null;
-
-      // 清理 slots
-      this.$slots = null;
-
-      // 标记为未挂载
-      this.isMounted = false;
-
-      // 清理父组件引用
-      this.parent = null;
-      this._cleanupContextSubscriptions(); // 清理上下文订阅
+      that._performUnmount();
     }
+  }
+  
+  _performUnmount() {
+    const that = this;
+    
+    this.beforeUnmount?.call(this);
+
+    this._cleanupEventHandlers();
+    this._cleanupDirectives();
+    this._cleanupDOM();
+    this._cleanupData();
+    this._cleanupContextSubscriptions();
+    
+    this.isMounted = false;
+    this.parent = null;
+  }
+  
+  _cleanupEventHandlers() {
+    if (this._eventCleanup) {
+      this._eventCleanup.forEach(cleanup => {
+        try {
+          cleanup();
+        } catch (error) {
+          console.error('[XRender] Error cleaning up event handler:', error);
+        }
+      });
+      this._eventCleanup.clear();
+    }
+    
+    if (this._eventHandlers) {
+      this._eventHandlers.forEach(({ elem, eventName, namespace }) => {
+        try {
+          off(elem, eventName, namespace);
+        } catch (error) {
+          console.error('[XRender] Error removing event listener:', error);
+        }
+      });
+      this._eventHandlers.clear();
+    }
+  }
+  
+  _cleanupDirectives() {
+    Object.entries(XRender.directives).forEach(([name, directive]) => {
+      try {
+        directive.unbind?.(this.el, this);
+      } catch (error) {
+        console.error('[XRender] Error unbinding directive:', name, error);
+      }
+    });
+  }
+  
+  _cleanupDOM() {
+    if (this.el && this.el.parentNode) {
+      this.el.parentNode.removeChild(this.el);
+    }
+    
+    if (this.el) {
+      if (this.el._eventDelegation) {
+        Object.keys(this.el._eventDelegation).forEach(eventName => {
+          const eventHandler = this.el._eventListenerMap?.get(eventName);
+          if (eventHandler) {
+            this.el.removeEventListener(eventName, eventHandler);
+          }
+        });
+        delete this.el._eventDelegation;
+        delete this.el._eventListenerMap;
+      }
+      
+      if (this.el._eventHandlers) {
+        this.el._eventHandlers.clear();
+        delete this.el._eventHandlers;
+      }
+    }
+  }
+  
+  _cleanupData() {
+    this.data = null;
+    this.computed = null;
+    this.methods = null;
+    this.watch = null;
+    this.$slots = null;
+    this._watchers = null;
+    this._effects = null;
+    this._watchEffects = null;
+    this._renderMemo?.clear();
+    this._renderMemo = null;
   }
   _setupComponent() {
     const vm = this;

@@ -5,6 +5,12 @@ let currentInstance = null;
 let activeEffect = null;
 const globalWatchEffects = [];
 
+let isBatching = false;
+let batchedUpdates = [];
+let batchedEffects = new Set();
+let pendingEffects = new Set();
+let effectIdCounter = 0;
+
 export function setCurrentInstance(instance) {
   currentInstance = instance;
 }
@@ -17,69 +23,115 @@ export function getGlobalWatchEffects() {
   return globalWatchEffects;
 }
 
+export function batch(fn) {
+  isBatching = true;
+  try {
+    fn();
+  } finally {
+    isBatching = false;
+    flushBatchedEffects();
+  }
+}
+
+function flushBatchedEffects() {
+  if (pendingEffects.size === 0) return;
+  
+  const effects = Array.from(pendingEffects);
+  pendingEffects.clear();
+  
+  effects.forEach(effect => {
+    if (typeof effect === 'function') {
+      try {
+        effect();
+      } catch (error) {
+        console.error('[reactivity] Error in batched effect:', error);
+      }
+    } else if (effect && effect.active) {
+      try {
+        effect();
+      } catch (error) {
+        console.error('[reactivity] Error in batched effect:', error);
+      }
+    }
+  });
+}
+
+function queueEffect(effect) {
+  if (isBatching) {
+    pendingEffects.add(effect);
+  } else {
+    if (typeof effect === 'function') {
+      try {
+        effect();
+      } catch (error) {
+        console.error('[reactivity] Error in effect:', error);
+      }
+    } else if (effect && effect.active) {
+      try {
+        effect();
+      } catch (error) {
+        console.error('[reactivity] Error in effect:', error);
+      }
+    }
+  }
+}
+
 export function ref(value) {
   const refObj = {
     __isRef: true,
     _value: value,
+    _deps: new Set(),
+    _version: 0,
     get value() {
       if (activeEffect && activeEffect.active) {
-        activeEffect.deps.add(refObj);
-        if (!refObj._deps) {
-          refObj._deps = new Set();
+        const effectId = activeEffect.id || (activeEffect.id = ++effectIdCounter);
+        if (!refObj._deps.has(activeEffect)) {
+          refObj._deps.add(activeEffect);
+          activeEffect.deps.add(refObj);
         }
-        refObj._deps.add(activeEffect);
       }
       return refObj._value;
     },
     set value(newValue) {
       if (newValue !== refObj._value) {
+        const oldValue = refObj._value;
         refObj._value = newValue;
+        refObj._version++;
         
-        // Trigger any computed properties that depend on this ref
-        if (refObj._deps) {
-          refObj._deps.forEach(dep => {
+        if (refObj._deps.size > 0) {
+          const depsToTrigger = Array.from(refObj._deps);
+          for (let i = 0; i < depsToTrigger.length; i++) {
+            const dep = depsToTrigger[i];
             if (typeof dep === 'function') {
-              // This is a watcher effect
-              try {
-                dep();
-              } catch (error) {
-                console.error('[ref] Error in effect:', error);
-              }
+              queueEffect(dep);
             } else if (dep && dep.__isComputed) {
-              // This is a computed property, mark it as dirty
-              dep._dirty = true;
-              // Trigger any effects that depend on this computed
-              if (dep._deps) {
-                dep._deps.forEach(nestedDep => {
-                  if (typeof nestedDep === 'function') {
-                    try {
-                      nestedDep();
-                    } catch (error) {
-                      console.error('[ref] Error in nested effect:', error);
+              if (!dep._dirty) {
+                dep._dirty = true;
+                dep._version = (dep._version || 0) + 1;
+                if (dep._deps && dep._deps.size > 0) {
+                  const nestedDeps = Array.from(dep._deps);
+                  for (let j = 0; j < nestedDeps.length; j++) {
+                    const nestedDep = nestedDeps[j];
+                    if (typeof nestedDep === 'function') {
+                      queueEffect(nestedDep);
+                    } else if (nestedDep && nestedDep.__isComputed && !nestedDep._dirty) {
+                      nestedDep._dirty = true;
+                      nestedDep._version = (nestedDep._version || 0) + 1;
                     }
-                  } else if (nestedDep && nestedDep.__isComputed) {
-                    // Mark nested computed as dirty too
-                    nestedDep._dirty = true;
                   }
-                });
+                }
               }
-            }
-          });
-        }
-        
-        // Trigger global watch effects
-        globalWatchEffects.forEach(effect => {
-          if (typeof effect === 'function') {
-            try {
-              effect();
-            } catch (error) {
-              console.error('[ref] Error in global watchEffect:', error);
             }
           }
-        });
+        }
+        
+        if (globalWatchEffects.length > 0) {
+          for (let i = 0; i < globalWatchEffects.length; i++) {
+            queueEffect(globalWatchEffects[i]);
+          }
+        }
       }
-    },
-    _deps: new Set()
+    }
   };
   
   return refObj;
@@ -96,6 +148,8 @@ export function reactive(target) {
   }
 
   const deps = new Map();
+  const proxyCache = new WeakMap();
+  const targetVersion = { value: 0 };
 
   const handler = {
     get(target, key, receiver) {
@@ -107,13 +161,22 @@ export function reactive(target) {
         if (!deps.has(key)) {
           deps.set(key, new Set());
         }
-        deps.get(key).add(activeEffect);
+        const keyDeps = deps.get(key);
+        if (!keyDeps.has(activeEffect)) {
+          keyDeps.add(activeEffect);
+          activeEffect.deps.add({ target, key, deps });
+        }
       }
 
       const result = Reflect.get(target, key, receiver);
 
       if (typeof result === 'object' && result !== null && !result.__isReactive) {
-        return reactive(result);
+        if (proxyCache.has(result)) {
+          return proxyCache.get(result);
+        }
+        const proxy = reactive(result);
+        proxyCache.set(result, proxy);
+        return proxy;
       }
 
       return result;
@@ -124,37 +187,22 @@ export function reactive(target) {
       const result = Reflect.set(target, key, value, receiver);
 
       if (oldValue !== value) {
+        targetVersion.value++;
+        
         const keyDeps = deps.get(key);
-        if (keyDeps) {
-          keyDeps.forEach(effect => {
-            if (typeof effect === 'function') {
-              try {
-                effect();
-              } catch (error) {
-                console.error('[reactive] Error in effect:', error);
-              }
-            } else if (effect && effect.active) {
-              try {
-                effect();
-              } catch (error) {
-                console.error('[reactive] Error in effect:', error);
-              }
-            }
-          });
-          // Clear the deps for this key after triggering effects
-          deps.set(key, new Set());
+        if (keyDeps && keyDeps.size > 0) {
+          const effectsToTrigger = Array.from(keyDeps);
+          for (let i = 0; i < effectsToTrigger.length; i++) {
+            queueEffect(effectsToTrigger[i]);
+          }
+          keyDeps.clear();
         }
         
-        // Trigger global watch effects
-        globalWatchEffects.forEach(effect => {
-          if (typeof effect === 'function') {
-            try {
-              effect();
-            } catch (error) {
-              console.error('[reactive] Error in global watchEffect:', error);
-            }
+        if (globalWatchEffects.length > 0) {
+          for (let i = 0; i < globalWatchEffects.length; i++) {
+            queueEffect(globalWatchEffects[i]);
           }
-        });
+        }
       }
 
       return result;
@@ -389,59 +437,72 @@ export function computed(getterOrOptions) {
 
   let cachedValue;
   let _dirty = true;
-  let _deps = new Set(); // Dependencies that this computed tracks
+  let _deps = new Set();
+  let _computing = false;
+  let _version = 0;
 
   const computedRef = {
     __isComputed: true,
     get value() {
-      if (_dirty) {
-        // Store current active effect for dependency tracking
+      if (_dirty && !_computing) {
+        _computing = true;
+        
         const prevActiveEffect = activeEffect;
         
         try {
-          // Create a temporary effect for dependency tracking during computation
-          activeEffect = {
+          const tempEffect = {
             active: true,
-            deps: new Set()
+            deps: new Set(),
+            id: ++effectIdCounter
           };
           
-          // Execute the getter to compute value and track dependencies
+          activeEffect = tempEffect;
+          
           cachedValue = getter();
           
-          // Update dependencies from the temporary effect
-          _deps = new Set(activeEffect.deps);
+          const newDeps = new Set(tempEffect.deps);
           
-          // Register this computed as a dependency of each tracked dependency
-          _deps.forEach(dep => {
-            if (dep && dep._deps) {
+          newDeps.forEach(dep => {
+            if (dep && dep._deps && !dep._deps.has(computedRef)) {
               dep._deps.add(computedRef);
             }
           });
           
-          // Mark as computed (not dirty anymore)
+          _deps = newDeps;
           _dirty = false;
+          _version++;
+        } catch (error) {
+          console.error('[computed] Error during computation:', error);
         } finally {
           activeEffect = prevActiveEffect;
+          _computing = false;
         }
       }
       
-      // When this computed is accessed by another effect, add it to that effect's dependencies
       if (activeEffect && activeEffect.active) {
-        activeEffect.deps.add(computedRef);
+        if (!activeEffect.deps.has(computedRef)) {
+          activeEffect.deps.add(computedRef);
+        }
       }
       
       return cachedValue;
     },
     set value(newValue) {
       setter(newValue);
-      // Mark as dirty to trigger re-computation
       _dirty = true;
+      _version++;
     },
     get _dirty() {
       return _dirty;
     },
     set _dirty(value) {
       _dirty = value;
+    },
+    get _version() {
+      return _version;
+    },
+    set _version(value) {
+      _version = value;
     },
     _deps
   };
