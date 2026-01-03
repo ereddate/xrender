@@ -576,5 +576,6 @@ import * as SFC from 'xrender/sfc';
 - [StyleProcessor API](./style-processor.md)
 - [SFCBuilder API](./sfc-builder.md)
 - [Entry API](./entry.md)
+- [XProgress API](./xprogress.md)
 - [快速开始指南](../guides/getting-started.md)
 - [架构设计文档](../architecture.md)

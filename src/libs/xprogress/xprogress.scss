@@ -1,0 +1,156 @@
+@use '../styles/variables' as vars;
+
+.xprogress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  width: 100%;
+  height: 3px;
+  pointer-events: none;
+  
+  &-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background-color: vars.$primary-color;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 10px rgba(vars.$primary-color, 0.7);
+  }
+  
+  &-spinner {
+    display: block;
+    position: fixed;
+    z-index: 9999;
+    top: 15px;
+    right: 15px;
+    
+    &-icon {
+      width: 18px;
+      height: 18px;
+      box-sizing: border-box;
+      border: solid 2px transparent;
+      border-top-color: vars.$primary-color;
+      border-left-color: vars.$primary-color;
+      border-radius: 50%;
+      animation: xprogress-spinner 400ms linear infinite;
+    }
+  }
+}
+
+@keyframes xprogress-spinner {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.xprogress-custom {
+  &.xprogress {
+    height: var(--xprogress-height, 3px);
+  }
+  
+  .xprogress-bar {
+    background-color: var(--xprogress-color, vars.$primary-color);
+    transition: width var(--xprogress-speed, 0.3s) var(--xprogress-easing, ease);
+  }
+  
+  .xprogress-spinner-icon {
+    border-top-color: var(--xprogress-spinner-color, vars.$primary-color);
+    border-left-color: var(--xprogress-spinner-color, vars.$primary-color);
+    animation-duration: var(--xprogress-spinner-speed, 400ms);
+  }
+}
+
+.xprogress-striped {
+  .xprogress-bar {
+    background-image: linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.15) 25%,
+      transparent 25%,
+      transparent 50%,
+      rgba(255, 255, 255, 0.15) 50%,
+      rgba(255, 255, 255, 0.15) 75%,
+      transparent 75%,
+      transparent
+    );
+    background-size: 1rem 1rem;
+    animation: xprogress-stripes 1s linear infinite;
+  }
+}
+
+@keyframes xprogress-stripes {
+  0% {
+    background-position: 1rem 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+.xprogress-animated {
+  .xprogress-bar {
+    animation: xprogress-pulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes xprogress-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.xprogress-bottom {
+  &.xprogress {
+    top: auto;
+    bottom: 0;
+  }
+}
+
+.xprogress-vertical {
+  &.xprogress {
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+  }
+  
+  .xprogress-bar {
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 0;
+    transition: height 0.3s ease;
+  }
+}
+
+.xprogress-vertical-right {
+  &.xprogress {
+    left: auto;
+    right: 0;
+  }
+}
+
+.xprogress-no-spinner {
+  .xprogress-spinner {
+    display: none !important;
+  }
+}
+
+.xprogress-thick {
+  &.xprogress {
+    height: 5px;
+  }
+}
+
+.xprogress-thin {
+  &.xprogress {
+    height: 2px;
+  }
+}

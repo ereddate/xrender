@@ -33,5 +33,10 @@
     "name": "XRenderSFC",
     "version": "1.0.0",
     "description": "单文件组件支持"
+  },
+  "xprogress": {
+    "name": "XProgress",
+    "version": "1.0.0",
+    "description": "进度条组件"
   }
 }
