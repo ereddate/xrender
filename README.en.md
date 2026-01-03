@@ -5,7 +5,7 @@ XRender is a lightweight front-end framework focused on component-based developm
 ## Features
 - **Component-based Development**: Support for creating and reusing components.
 - **Data Binding**: Support for two-way data binding and template interpolation.
-- **Directive System**: Provides common directives such as `v-if`, `v-for`, `v-show`.
+- **Directive System**: Provides common directives such as `v-if`, `v-for`, `v-show`, `v-memo`.
 - **Lifecycle Hooks**: Supports lifecycle hooks like `created`, `mounted`, `updated`.
 - **Plugin System**: Supports extending functionality through plugins.
 - **Modular Architecture**: Core framework and functional modules are completely decoupled, supporting on-demand imports.
@@ -13,6 +13,7 @@ XRender is a lightweight front-end framework focused on component-based developm
 - **Independent Packaging**: Each module can be packaged independently, supporting versioned files and directories.
 - **SSR Support**: Supports Server-Side Rendering (SSR).
 - **SSG Support**: Supports Static Site Generation (SSG) for optimized SEO performance.
+- **KeepAlive Support**: Supports component caching to avoid repeated creation and destruction, improving performance.
 - **Routing Support**: Supports routing management and navigation.
 - **State Management**: Supports state management.
 - **Reactive System**: Supports reactive data, computed properties, and deep watching.

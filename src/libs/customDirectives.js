@@ -48,12 +48,20 @@ const customDirectives = {
   html: {
     bind(el, binding, vm) {
       if (vm && vm.data) {
-        el.innerHTML = vm.data[binding.value];
+        const value = typeof binding === 'object' ? binding.value : binding;
+        console.log('v-html bind:', value, 'vm.data:', vm.data);
+        const nestedValue = value.split('.').reduce((obj, key) => obj && obj[key], vm.data);
+        console.log('v-html nestedValue:', nestedValue);
+        el.innerHTML = nestedValue !== undefined ? nestedValue : '';
       }
     },
     update(el, binding, vm) {
       if (vm && vm.data) {
-        el.innerHTML = vm.data[binding.value];
+        const value = typeof binding === 'object' ? binding.value : binding;
+        console.log('v-html update:', value, 'vm.data:', vm.data);
+        const nestedValue = value.split('.').reduce((obj, key) => obj && obj[key], vm.data);
+        console.log('v-html nestedValue:', nestedValue);
+        el.innerHTML = nestedValue !== undefined ? nestedValue : '';
       }
     },
   },
@@ -757,6 +765,75 @@ const customDirectives = {
         Object.entries(value).forEach(([styleName, styleVal]) => {
           el.style[styleName] = styleVal;
         });
+      }
+    },
+  },
+  memo: {
+    bind(el, binding, vm) {
+      const dependencies = Array.isArray(binding.value) ? binding.value : [binding.value];
+      const oldValues = dependencies.map((dep) => {
+        if (typeof dep === "string") {
+          return vm.data[dep];
+        }
+        return dep;
+      });
+
+      el._memoDependencies = dependencies;
+      el._memoOldValues = oldValues;
+      el._memoShouldUpdate = false;
+
+      const checkDependencies = () => {
+        const newValues = dependencies.map((dep) => {
+          if (typeof dep === "string") {
+            return vm.data[dep];
+          }
+          return dep;
+        });
+
+        const hasChanged = newValues.some((newValue, index) => {
+          const oldValue = oldValues[index];
+          return JSON.stringify(newValue) !== JSON.stringify(oldValue);
+        });
+
+        el._memoShouldUpdate = hasChanged;
+        return hasChanged;
+      };
+
+      el._memoCheckDependencies = checkDependencies;
+
+      dependencies.forEach((dep) => {
+        if (typeof dep === "string" && vm.watch) {
+          const originalWatch = vm.watch[dep];
+          vm.watch[dep] = function (newVal, oldVal) {
+            checkDependencies();
+            if (originalWatch) {
+              originalWatch.call(vm, newVal, oldVal);
+            }
+          };
+        }
+      });
+    },
+    update(el, binding, vm) {
+      if (el._memoCheckDependencies) {
+        const shouldUpdate = el._memoCheckDependencies();
+        if (shouldUpdate) {
+          el._memoOldValues = el._memoDependencies.map((dep) => {
+            if (typeof dep === "string") {
+              return vm.data[dep];
+            }
+            return dep;
+          });
+        }
+        return shouldUpdate;
+      }
+      return true;
+    },
+    unbind(el) {
+      if (el._memoDependencies) {
+        delete el._memoDependencies;
+        delete el._memoOldValues;
+        delete el._memoShouldUpdate;
+        delete el._memoCheckDependencies;
       }
     },
   },

@@ -1,28 +1,32 @@
+@use 'variables' as vars;
+@use 'mixins' as mixins;
+@use 'sass:color';
+
 // 按钮组件
 .btn {
   display: inline-block;
-  font-weight: $font-weight-medium;
-  color: $dark-color;
+  font-weight: vars.$font-weight-medium;
+  color: vars.$dark-color;
   text-align: center;
   vertical-align: middle;
   cursor: pointer;
   user-select: none;
   background-color: transparent;
-  border: $border-width solid transparent;
-  @include border-radius($border-radius);
-  @include transition($transition-base);
+  border: vars.$border-width solid transparent;
+  @include mixins.border-radius(vars.$border-radius);
+  @include mixins.transition(vars.$transition-base);
   padding: 0.375rem 0.75rem;
-  font-size: $font-size-base;
-  line-height: $line-height-base;
+  font-size: vars.$font-size-base;
+  line-height: vars.$line-height-base;
 
   &:hover {
-    color: $dark-color;
+    color: vars.$dark-color;
     text-decoration: none;
   }
 
   &:focus {
     outline: 0;
-    box-shadow: 0 0 0 0.2rem rgba($primary-color, 0.25);
+    box-shadow: 0 0 0 0.2rem rgba(vars.$primary-color, 0.25);
   }
 
   &:disabled {
@@ -31,79 +35,79 @@
   }
 
   &.btn-primary {
-    @include button-variant($white, $primary-color, $primary-color);
+    @include mixins.button-variant(vars.$white, vars.$primary-color, vars.$primary-color);
   }
 
   &.btn-secondary {
-    @include button-variant($white, $secondary-color, $secondary-color);
+    @include mixins.button-variant(vars.$white, vars.$secondary-color, vars.$secondary-color);
   }
 
   &.btn-success {
-    @include button-variant($white, $success-color, $success-color);
+    @include mixins.button-variant(vars.$white, vars.$success-color, vars.$success-color);
   }
 
   &.btn-info {
-    @include button-variant($white, $info-color, $info-color);
+    @include mixins.button-variant(vars.$white, vars.$info-color, vars.$info-color);
   }
 
   &.btn-warning {
-    @include button-variant($dark-color, $warning-color, $warning-color);
+    @include mixins.button-variant(vars.$dark-color, vars.$warning-color, vars.$warning-color);
   }
 
   &.btn-danger {
-    @include button-variant($white, $danger-color, $danger-color);
+    @include mixins.button-variant(vars.$white, vars.$danger-color, vars.$danger-color);
   }
 
   &.btn-light {
-    @include button-variant($dark-color, $light-color, $light-color);
+    @include mixins.button-variant(vars.$dark-color, vars.$light-color, vars.$light-color);
   }
 
   &.btn-dark {
-    @include button-variant($white, $dark-color, $dark-color);
+    @include mixins.button-variant(vars.$white, vars.$dark-color, vars.$dark-color);
   }
 
   &.btn-outline-primary {
-    color: $primary-color;
-    border-color: $primary-color;
+    color: vars.$primary-color;
+    border-color: vars.$primary-color;
     
     &:hover {
-      color: $white;
-      background-color: $primary-color;
-      border-color: $primary-color;
+      color: vars.$white;
+      background-color: vars.$primary-color;
+      border-color: vars.$primary-color;
     }
 
     &:focus {
-      box-shadow: 0 0 0 0.2rem rgba($primary-color, 0.5);
+      box-shadow: 0 0 0 0.2rem rgba(vars.$primary-color, 0.5);
     }
   }
 
   &.btn-outline-secondary {
-    color: $secondary-color;
-    border-color: $secondary-color;
+    color: vars.$secondary-color;
+    border-color: vars.$secondary-color;
     
     &:hover {
-      color: $white;
-      background-color: $secondary-color;
-      border-color: $secondary-color;
+      color: vars.$white;
+      background-color: vars.$secondary-color;
+      border-color: vars.$secondary-color;
     }
 
     &:focus {
-      box-shadow: 0 0 0 0.2rem rgba($secondary-color, 0.5);
+      box-shadow: 0 0 0 0.2rem rgba(vars.$secondary-color, 0.5);
     }
   }
 
   &.btn-sm {
     padding: 0.25rem 0.5rem;
-    font-size: $font-size-sm;
-    line-height: $line-height-sm;
-    @include border-radius($border-radius-sm);
+    font-size: vars.$font-size-sm;
+    line-height: vars.$line-height-sm;
+    @include mixins.border-radius(vars.$border-radius-sm);
   }
 
   &.btn-lg {
     padding: 0.5rem 1rem;
-    font-size: $font-size-lg;
-    line-height: $line-height-lg;
-    @include border-radius($border-radius-lg);
+    font-size: vars.$font-size-lg;
+    line-height: vars.$line-height-lg;
+    @include mixins.border-radius(vars.$border-radius-lg);
   }
 
   &.btn-block {
@@ -119,87 +123,87 @@
   flex-direction: column;
   min-width: 0;
   word-wrap: break-word;
-  background-color: $white;
+  background-color: vars.$white;
   background-clip: border-box;
-  border: $border-width solid $border-color;
-  @include border-radius($border-radius);
-  @include box-shadow($shadow-sm);
+  border: vars.$border-width solid vars.$border-color;
+  @include mixins.border-radius(vars.$border-radius);
+  @include mixins.box-shadow(vars.$shadow-sm);
 
   > .card-header {
-    padding: $spacing-base $spacing-base;
+    padding: vars.$spacing-base vars.$spacing-base;
     margin-bottom: 0;
     background-color: rgba(0, 0, 0, 0.03);
-    border-bottom: $border-width solid $border-color;
-    @include border-top-radius($border-radius);
+    border-bottom: vars.$border-width solid vars.$border-color;
+    @include mixins.border-top-radius(vars.$border-radius);
   }
 
   > .card-body {
     flex: 1 1 auto;
-    padding: $spacing-base;
+    padding: vars.$spacing-base;
   }
 
   > .card-footer {
-    padding: $spacing-base $spacing-base;
+    padding: vars.$spacing-base vars.$spacing-base;
     background-color: rgba(0, 0, 0, 0.03);
-    border-top: $border-width solid $border-color;
-    @include border-bottom-radius($border-radius);
+    border-top: vars.$border-width solid vars.$border-color;
+    @include mixins.border-bottom-radius(vars.$border-radius);
   }
 }
 
 // 警告框组件
 .alert {
   position: relative;
-  padding: $spacing-base;
-  margin-bottom: $spacing-base;
-  border: $border-width solid transparent;
-  @include border-radius($border-radius);
+  padding: vars.$spacing-base;
+  margin-bottom: vars.$spacing-base;
+  border: vars.$border-width solid transparent;
+  @include mixins.border-radius(vars.$border-radius);
 
   &.alert-primary {
-    color: $primary-color;
-    background-color: rgba($primary-color, 0.1);
-    border-color: rgba($primary-color, 0.3);
+    color: vars.$primary-color;
+    background-color: rgba(vars.$primary-color, 0.1);
+    border-color: rgba(vars.$primary-color, 0.3);
   }
 
   &.alert-secondary {
-    color: $secondary-color;
-    background-color: rgba($secondary-color, 0.1);
-    border-color: rgba($secondary-color, 0.3);
+    color: vars.$secondary-color;
+    background-color: rgba(vars.$secondary-color, 0.1);
+    border-color: rgba(vars.$secondary-color, 0.3);
   }
 
   &.alert-success {
-    color: $success-color;
-    background-color: rgba($success-color, 0.1);
-    border-color: rgba($success-color, 0.3);
+    color: vars.$success-color;
+    background-color: rgba(vars.$success-color, 0.1);
+    border-color: rgba(vars.$success-color, 0.3);
   }
 
   &.alert-info {
-    color: $info-color;
-    background-color: rgba($info-color, 0.1);
-    border-color: rgba($info-color, 0.3);
+    color: vars.$info-color;
+    background-color: rgba(vars.$info-color, 0.1);
+    border-color: rgba(vars.$info-color, 0.3);
   }
 
   &.alert-warning {
-    color: $warning-color;
-    background-color: rgba($warning-color, 0.1);
-    border-color: rgba($warning-color, 0.3);
+    color: vars.$warning-color;
+    background-color: rgba(vars.$warning-color, 0.1);
+    border-color: rgba(vars.$warning-color, 0.3);
   }
 
   &.alert-danger {
-    color: $danger-color;
-    background-color: rgba($danger-color, 0.1);
-    border-color: rgba($danger-color, 0.3);
+    color: vars.$danger-color;
+    background-color: rgba(vars.$danger-color, 0.1);
+    border-color: rgba(vars.$danger-color, 0.3);
   }
 
   &.alert-light {
-    color: $light-color;
-    background-color: rgba($light-color, 0.1);
-    border-color: rgba($light-color, 0.3);
+    color: vars.$light-color;
+    background-color: rgba(vars.$light-color, 0.1);
+    border-color: rgba(vars.$light-color, 0.3);
   }
 
   &.alert-dark {
-    color: $dark-color;
-    background-color: rgba($dark-color, 0.1);
-    border-color: rgba($dark-color, 0.3);
+    color: vars.$dark-color;
+    background-color: rgba(vars.$dark-color, 0.1);
+    border-color: rgba(vars.$dark-color, 0.3);
   }
 }
 
@@ -211,17 +215,17 @@
   list-style: none;
 
   &.nav-tabs {
-    border-bottom: $border-width solid $border-color;
+    border-bottom: vars.$border-width solid vars.$border-color;
 
     .nav-item {
-      margin-bottom: -$border-width;
+      margin-bottom: calc(-1 * vars.$border-width);
     }
 
     .nav-link {
       display: block;
-      padding: $spacing-sm $spacing-base;
-      border: $border-width solid transparent;
-      @include border-top-radius($border-radius);
+      padding: vars.$spacing-sm vars.$spacing-base;
+      border: vars.$border-width solid transparent;
+      @include mixins.border-top-radius(vars.$border-radius);
 
       &:hover {
         border-color: transparent;
@@ -229,20 +233,20 @@
       }
 
       &.active {
-        color: $primary-color;
-        background-color: $white;
-        border-color: $border-color $border-color $white;
+        color: vars.$primary-color;
+        background-color: vars.$white;
+        border-color: vars.$border-color vars.$border-color vars.$white;
       }
     }
   }
 
   &.nav-pills {
     .nav-link {
-      @include border-radius($border-radius);
+      @include mixins.border-radius(vars.$border-radius);
 
       &.active {
-        color: $white;
-        background-color: $primary-color;
+        color: vars.$white;
+        background-color: vars.$primary-color;
       }
     }
   }
@@ -254,12 +258,12 @@
   .nav-link {
     display: block;
     padding: 0.5rem 1rem;
-    color: $primary-color;
+    color: vars.$primary-color;
     text-decoration: none;
-    @include transition($transition-base);
+    @include mixins.transition(vars.$transition-base);
 
     &:hover {
-      color: darken($primary-color, 15%);
+      color: color.adjust(vars.$primary-color, $lightness: -15%);
       text-decoration: none;
     }
   }
@@ -268,23 +272,23 @@
 // 表格组件
 .table {
   width: 100%;
-  margin-bottom: $spacing-base;
-  color: $dark-color;
+  margin-bottom: vars.$spacing-base;
+  color: vars.$dark-color;
   background-color: transparent;
 
   th, td {
-    padding: $spacing-sm $spacing-base;
+    padding: vars.$spacing-sm vars.$spacing-base;
     vertical-align: top;
-    border-top: $border-width solid $border-color;
+    border-top: vars.$border-width solid vars.$border-color;
   }
 
   thead th {
     vertical-align: bottom;
-    border-bottom: 2px solid $border-color;
+    border-bottom: 2px solid vars.$border-color;
   }
 
   tbody + tbody {
-    border-top: 2px solid $border-color;
+    border-top: 2px solid vars.$border-color;
   }
 
   &.table-striped {
@@ -294,10 +298,10 @@
   }
 
   &.table-bordered {
-    border: $border-width solid $border-color;
+    border: vars.$border-width solid vars.$border-color;
 
     th, td {
-      border: $border-width solid $border-color;
+      border: vars.$border-width solid vars.$border-color;
     }
   }
 
@@ -313,7 +317,7 @@
   position: fixed;
   top: 0;
   left: 0;
-  z-index: $z-index-modal;
+  z-index: vars.$z-index-modal;
   display: none;
   width: 100%;
   height: 100%;
@@ -328,7 +332,7 @@
 .modal-dialog {
   position: relative;
   width: auto;
-  margin: $spacing-base;
+  margin: vars.$spacing-base;
   pointer-events: none;
 }
 
@@ -338,11 +342,11 @@
   flex-direction: column;
   width: 100%;
   pointer-events: auto;
-  background-color: $white;
+  background-color: vars.$white;
   background-clip: padding-box;
   border: 1px solid rgba(0, 0, 0, 0.2);
-  @include border-radius($border-radius-lg);
-  @include box-shadow($shadow-lg);
+  @include mixins.border-radius(vars.$border-radius-lg);
+  @include mixins.box-shadow(vars.$shadow-lg);
   outline: 0;
 }
 
@@ -350,36 +354,36 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: $spacing-base;
-  border-bottom: $border-width solid $border-color;
-  @include border-top-radius($border-radius-lg);
+  padding: vars.$spacing-base;
+  border-bottom: vars.$border-width solid vars.$border-color;
+  @include mixins.border-top-radius(vars.$border-radius-lg);
 }
 
 .modal-title {
   margin-bottom: 0;
-  line-height: $line-height-base;
+  line-height: vars.$line-height-base;
 }
 
 .modal-body {
   position: relative;
   flex: 1 1 auto;
-  padding: $spacing-base;
+  padding: vars.$spacing-base;
 }
 
 .modal-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: $spacing-base;
-  border-top: $border-width solid $border-color;
-  @include border-bottom-radius($border-radius-lg);
+  padding: vars.$spacing-base;
+  border-top: vars.$border-width solid vars.$border-color;
+  @include mixins.border-bottom-radius(vars.$border-radius-lg);
 
   > :not(:first-child) {
-    margin-left: $spacing-sm;
+    margin-left: vars.$spacing-sm;
   }
 
   > :not(:last-child) {
-    margin-right: $spacing-sm;
+    margin-right: vars.$spacing-sm;
   }
 }
 
@@ -390,22 +394,22 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  padding: $spacing-sm $spacing-base;
-  background-color: $primary-color;
+  padding: vars.$spacing-sm vars.$spacing-base;
+  background-color: vars.$primary-color;
 
   .navbar-brand {
     display: inline-block;
     padding-top: 0.3125rem;
     padding-bottom: 0.3125rem;
-    margin-right: $spacing-base;
-    font-size: $font-size-lg;
+    margin-right: vars.$spacing-base;
+    font-size: vars.$font-size-lg;
     line-height: inherit;
     white-space: nowrap;
-    color: $white;
+    color: vars.$white;
     text-decoration: none;
 
     &:hover {
-      color: $white;
+      color: vars.$white;
       text-decoration: none;
     }
   }
@@ -420,8 +424,8 @@
     .nav-item {
       .nav-link {
         display: block;
-        padding: $spacing-sm $spacing-base;
-        color: $white;
+        padding: vars.$spacing-sm vars.$spacing-base;
+        color: vars.$white;
         text-decoration: none;
 
         &:hover {
@@ -457,20 +461,20 @@
   position: absolute;
   top: 100%;
   left: 0;
-  z-index: $z-index-dropdown;
+  z-index: vars.$z-index-dropdown;
   display: none;
   float: left;
   min-width: 10rem;
-  padding: $spacing-sm 0;
-  margin: $spacing-xs 0 0;
-  font-size: $font-size-base;
-  color: $dark-color;
+  padding: vars.$spacing-sm 0;
+  margin: vars.$spacing-xs 0 0;
+  font-size: vars.$font-size-base;
+  color: vars.$dark-color;
   text-align: left;
-  background-color: $white;
+  background-color: vars.$white;
   background-clip: padding-box;
-  border: $border-width solid $border-color;
-  @include border-radius($border-radius);
-  @include box-shadow($shadow-base);
+  border: vars.$border-width solid vars.$border-color;
+  @include mixins.border-radius(vars.$border-radius);
+  @include mixins.box-shadow(vars.$shadow-base);
 
   &.show {
     display: block;
@@ -480,25 +484,25 @@
 .dropdown-item {
   display: block;
   width: 100%;
-  padding: $spacing-xs $spacing-base;
+  padding: vars.$spacing-xs vars.$spacing-base;
   clear: both;
-  font-weight: $font-weight-normal;
-  color: $dark-color;
+  font-weight: vars.$font-weight-normal;
+  color: vars.$dark-color;
   text-align: inherit;
   white-space: nowrap;
   background-color: transparent;
   border: 0;
 
   &:hover, &:focus {
-    color: darken($dark-color, 5%);
+    color: color.adjust(vars.$dark-color, $lightness: -5%);
     text-decoration: none;
     background-color: rgba(0, 0, 0, 0.05);
   }
 
   &.active {
-    color: $white;
+    color: vars.$white;
     text-decoration: none;
-    background-color: $primary-color;
+    background-color: vars.$primary-color;
   }
 }
 
@@ -507,12 +511,12 @@
   display: inline-block;
   padding: 0.25em 0.4em;
   font-size: 75%;
-  font-weight: $font-weight-bold;
+  font-weight: vars.$font-weight-bold;
   line-height: 1;
   text-align: center;
   white-space: nowrap;
   vertical-align: baseline;
-  @include border-radius($border-radius);
+  @include mixins.border-radius(vars.$border-radius);
 
   &:empty {
     display: none;

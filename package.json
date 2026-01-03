@@ -21,7 +21,8 @@
     "build:touchs": "vite build --config vite.config.touchs.js",
     "build:sfc": "vite build --config vite.config.sfc.js",
     "build:ssg:module": "vite build --config vite.config.ssg.module.js",
-    "build:all": "npm run build:libs && npm run build:fetch && npm run build:router && npm run build:store && npm run build:i18n && npm run build:touchs && npm run build:sfc && npm run build:ssg:module && node scripts/post-build.js latest",
+    "build:keep-alive": "vite build --config vite.config.keep-alive.js",
+    "build:all": "npm run build:libs && npm run build:fetch && npm run build:router && npm run build:store && npm run build:i18n && npm run build:touchs && npm run build:sfc && npm run build:ssg:module && npm run build:keep-alive && node scripts/post-build.js latest",
     "post-build:latest": "node scripts/post-build.js latest",
     "post-build:clean": "node scripts/post-build.js clean",
     "post-build:list": "node scripts/post-build.js list",
@@ -44,6 +45,7 @@
     "intl-messageformat": "^10.3.5",
     "jsdom": "^27.4.0",
     "less": "^4.5.1",
+    "markdown-it-container": "^4.0.0",
     "sass": "^1.87.0",
     "terser": "^5.39.0",
     "vite": "^6.3.1",
@@ -51,6 +53,10 @@
     "vitest": "^4.0.16"
   },
   "dependencies": {
-    "core-js": "^3.47.0"
+    "core-js": "^3.47.0",
+    "fuse.js": "^7.1.0",
+    "glob": "^13.0.0",
+    "highlight.js": "^11.11.1",
+    "marked": "^4.3.0"
   }
 }

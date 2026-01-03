@@ -1,3 +1,7 @@
+@use 'variables' as vars;
+@use 'sass:color';
+@use 'sass:math';
+
 // 清除浮动
 @mixin clearfix {
   &::after {
@@ -28,40 +32,40 @@
 // 响应式断点
 @mixin media-breakpoint-up($name) {
   @if $name == xs {
-    @media (min-width: $breakpoint-xs) { @content; }
+    @media (min-width: vars.$breakpoint-xs) { @content; }
   }
   @else if $name == sm {
-    @media (min-width: $breakpoint-sm) { @content; }
+    @media (min-width: vars.$breakpoint-sm) { @content; }
   }
   @else if $name == md {
-    @media (min-width: $breakpoint-md) { @content; }
+    @media (min-width: vars.$breakpoint-md) { @content; }
   }
   @else if $name == lg {
-    @media (min-width: $breakpoint-lg) { @content; }
+    @media (min-width: vars.$breakpoint-lg) { @content; }
   }
   @else if $name == xl {
-    @media (min-width: $breakpoint-xl) { @content; }
+    @media (min-width: vars.$breakpoint-xl) { @content; }
   }
   @else if $name == xxl {
-    @media (min-width: $breakpoint-xxl) { @content; }
+    @media (min-width: vars.$breakpoint-xxl) { @content; }
   }
 }
 
 @mixin media-breakpoint-down($name) {
   @if $name == xs {
-    @media (max-width: #{$breakpoint-sm - 1px}) { @content; }
+    @media (max-width: #{vars.$breakpoint-sm - 1px}) { @content; }
   }
   @else if $name == sm {
-    @media (max-width: #{$breakpoint-md - 1px}) { @content; }
+    @media (max-width: #{vars.$breakpoint-md - 1px}) { @content; }
   }
   @else if $name == md {
-    @media (max-width: #{$breakpoint-lg - 1px}) { @content; }
+    @media (max-width: #{vars.$breakpoint-lg - 1px}) { @content; }
   }
   @else if $name == lg {
-    @media (max-width: #{$breakpoint-xl - 1px}) { @content; }
+    @media (max-width: #{vars.$breakpoint-xl - 1px}) { @content; }
   }
   @else if $name == xl {
-    @media (max-width: #{$breakpoint-xxl - 1px}) { @content; }
+    @media (max-width: #{vars.$breakpoint-xxl - 1px}) { @content; }
   }
 }
 
@@ -81,12 +85,12 @@
 }
 
 // 阴影
-@mixin box-shadow($shadow: $shadow-base) {
+@mixin box-shadow($shadow: vars.$shadow-base) {
   box-shadow: $shadow;
 }
 
 // 边框圆角
-@mixin border-radius($radius: $border-radius) {
+@mixin border-radius($radius: vars.$border-radius) {
   border-radius: $radius;
 }
 
@@ -95,16 +99,16 @@
   color: $color;
   background-color: $background;
   border-color: $border;
-  transition: $transition-base;
+  transition: vars.$transition-base;
 
   &:hover {
-    background-color: darken($background, 7.5%);
-    border-color: darken($border, 10%);
+    background-color: color.adjust($background, $lightness: -8%, $saturation: -5%);
+    border-color: color.adjust($border, $lightness: -10%, $saturation: -5%);
   }
 
   &:active {
-    background-color: darken($background, 10%);
-    border-color: darken($border, 12.5%);
+    background-color: color.adjust($background, $lightness: -12%, $saturation: -7%);
+    border-color: color.adjust($border, $lightness: -14%, $saturation: -7%);
   }
 
   &:focus {
@@ -117,26 +121,26 @@
   display: block;
   width: 100%;
   padding: 0.375rem 0.75rem;
-  font-size: $font-size-base;
-  line-height: $line-height-base;
-  color: $dark-color;
-  background-color: $white;
+  font-size: vars.$font-size-base;
+  line-height: vars.$line-height-base;
+  color: vars.$dark-color;
+  background-color: vars.$white;
   background-image: none;
-  border: $border-width solid $border-color;
-  @include border-radius($border-radius);
+  border: vars.$border-width solid vars.$border-color;
+  @include border-radius(vars.$border-radius);
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 
   &:focus {
-    color: $dark-color;
-    background-color: $white;
-    border-color: $primary-color;
+    color: vars.$dark-color;
+    background-color: vars.$white;
+    border-color: vars.$primary-color;
     outline: 0;
-    box-shadow: 0 0 0 0.2rem rgba($primary-color, 0.25);
+    box-shadow: 0 0 0 0.2rem rgba(vars.$primary-color, 0.25);
   }
 }
 
 // 容器样式
-@mixin make-container($max-widths: $container-sm, $paddings: $spacing-base) {
+@mixin make-container($max-widths: vars.$container-sm, $paddings: vars.$spacing-base) {
   width: 100%;
   padding-right: $paddings;
   padding-left: $paddings;
@@ -151,48 +155,48 @@
 }
 
 // 行样式
-@mixin make-row($gutters: $spacing-base) {
+@mixin make-row($gutters: vars.$spacing-base) {
   display: flex;
   flex-wrap: wrap;
-  margin-right: -$gutters / 2;
-  margin-left: -$gutters / 2;
+  margin-right: math.div(-$gutters, 2);
+  margin-left: math.div(-$gutters, 2);
 
   > * {
-    padding-right: $gutters / 2;
-    padding-left: $gutters / 2;
+    padding-right: math.div($gutters, 2);
+    padding-left: math.div($gutters, 2);
   }
 }
 
 // 列样式
-@mixin make-col-ready($gutter: $spacing-base) {
+@mixin make-col-ready($gutter: vars.$spacing-base) {
   position: relative;
   width: 100%;
-  padding-right: $gutter / 2;
-  padding-left: $gutter / 2;
+  padding-right: math.div($gutter, 2);
+  padding-left: math.div($gutter, 2);
 }
 
 // 圆角样式
-@mixin border-top-radius($radius: $border-radius) {
+@mixin border-top-radius($radius: vars.$border-radius) {
   border-top-left-radius: $radius;
   border-top-right-radius: $radius;
 }
 
-@mixin border-right-radius($radius: $border-radius) {
+@mixin border-right-radius($radius: vars.$border-radius) {
   border-top-right-radius: $radius;
   border-bottom-right-radius: $radius;
 }
 
-@mixin border-bottom-radius($radius: $border-radius) {
+@mixin border-bottom-radius($radius: vars.$border-radius) {
   border-bottom-right-radius: $radius;
   border-bottom-left-radius: $radius;
 }
 
-@mixin border-left-radius($radius: $border-radius) {
+@mixin border-left-radius($radius: vars.$border-radius) {
   border-top-left-radius: $radius;
   border-bottom-left-radius: $radius;
 }
 
 // 过渡效果
-@mixin transition($transition: $transition-base) {
+@mixin transition($transition: vars.$transition-base) {
   transition: $transition;
 }
