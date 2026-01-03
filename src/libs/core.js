@@ -123,7 +123,9 @@ const elemAttrs = function (elem, attributes) {
     // 处理自定义指令
     if (key.startsWith("v-") && XRender.directives[key.slice(2)]) {
       const directive = XRender.directives[key.slice(2)];
-      directive.bind?.(elem, value, that); // 确保 that 是正确的 vm 实例
+      const binding = { value: value };
+      directive.bind?.(elem, binding, that); // 确保 that 是正确的 vm 实例
+      return;
     }
     if (key === "text") {
       if (value.includes("{{")) {
@@ -974,6 +976,12 @@ export class Component {
     }
     this.data = this.observe(data); // 数据响应式处理
     this.methods = (options && options.methods) || {};
+    // 将 methods 绑定到实例上
+    if (this.methods) {
+      Object.entries(this.methods).forEach(([key, value]) => {
+        this[key] = typeof value === 'function' ? value.bind(this) : value;
+      });
+    }
     this.watch = (options && options.watch) || {};
     this.$slots = (options && options.slots) || {};
     this.el = null;
@@ -1072,6 +1080,9 @@ export class Component {
     this._effects = [];
     // 新增 watchEffects 数组用于存储 watch 和 watchEffect
     this._watchEffects = [];
+    // Provide/Inject API 相关属性
+    this._provides = {};
+    this._injected = {};
     
     // 添加render方法，用于创建虚拟DOM
     if (options?.render) {
@@ -1099,7 +1110,13 @@ export class Component {
     // 调用 setup() 函数（必须在 beforeMount 之前调用）
     setCurrentInstance(this);
     try {
-      const setupResult = this.options.setup?.call(this);
+      const setupContext = {
+        provide: this.provide.bind(this),
+        inject: this.inject.bind(this),
+        provideObject: this.provideObject.bind(this),
+        injectObject: this.injectObject.bind(this)
+      };
+      const setupResult = this.options.setup?.call(this, this.props, setupContext);
       if (setupResult) {
         // 将 setup 返回的值合并到组件实例
         Object.assign(this, setupResult);
@@ -1314,6 +1331,85 @@ export class Component {
     setCurrentInstance(null);
     // 清理 watchEffects
     this._cleanupWatchEffects();
+    // 清理上下文订阅
+    this._cleanupContextSubscriptions();
+  }
+
+  // Provide/Inject API 实现
+  provide(key, value) {
+    if (typeof key !== 'string') {
+      console.warn('[XRender] provide key must be a string');
+      return this;
+    }
+    
+    // 如果值是响应式对象，保持其响应性
+    this._provides[key] = value;
+    return this;
+  }
+
+  inject(key, defaultValue) {
+    if (typeof key !== 'string') {
+      console.warn('[XRender] inject key must be a string');
+      return defaultValue;
+    }
+
+    // 如果已经注入过，直接返回缓存值
+    if (key in this._injected) {
+      return this._injected[key];
+    }
+
+    // 向上查找最近的 provider
+    let component = this.parent;
+    while (component) {
+      if (key in component._provides) {
+        const value = component._provides[key];
+        
+        // 如果值是响应式对象，建立依赖关系
+        if (value && typeof value === 'object' && value.__isProxy) {
+          // 订阅响应式变化
+          const unsubscribe = () => {
+            // 清理订阅逻辑
+          };
+          this._contextSubscriptions.add(unsubscribe);
+        }
+        
+        // 缓存注入的值
+        this._injected[key] = value;
+        return value;
+      }
+      component = component.parent;
+    }
+
+    // 如果没有找到，返回默认值
+    if (arguments.length > 1) {
+      this._injected[key] = defaultValue;
+      return defaultValue;
+    }
+
+    console.warn(`[XRender] injection "${key}" not found`);
+    return undefined;
+  }
+
+  // 批量提供多个值
+  provideObject(obj) {
+    if (typeof obj !== 'object' || obj === null) {
+      console.warn('[XRender] provideObject argument must be an object');
+      return this;
+    }
+    
+    Object.entries(obj).forEach(([key, value]) => {
+      this.provide(key, value);
+    });
+    return this;
+  }
+
+  // 批量注入多个值
+  injectObject(keys) {
+    const result = {};
+    keys.forEach(key => {
+      result[key] = this.inject(key);
+    });
+    return result;
   }
   // 新增：捕获错误
   captureError(error) {

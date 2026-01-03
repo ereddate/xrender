@@ -785,7 +785,7 @@ export function provide(key, value) {
   const instance = getCurrentInstance();
   if (instance) {
     if (!instance._provides) {
-      instance._provides = Object.create(instance.parent?._provides || null);
+      instance._provides = {};
     }
     instance._provides[key] = value;
   }
@@ -793,15 +793,47 @@ export function provide(key, value) {
 
 export function inject(key, defaultValue) {
   const instance = getCurrentInstance();
-  if (instance) {
-    let provides = instance._provides || instance.parent?._provides;
-    while (provides) {
-      if (key in provides) {
-        return provides[key];
-      }
-      provides = Object.getPrototypeOf(provides);
-    }
+  if (!instance) {
     return defaultValue;
   }
-  return defaultValue;
+
+  // 如果已经注入过，直接返回缓存值
+  if (instance._injected && key in instance._injected) {
+    return instance._injected[key];
+  }
+
+  // 向上查找最近的 provider
+  let component = instance.parent;
+  while (component) {
+    if (component._provides && key in component._provides) {
+      const value = component._provides[key];
+      
+      // 如果值是响应式对象，建立依赖关系
+      if (value && typeof value === 'object' && (value.__isRef || value.__isReactive)) {
+        // 订阅响应式变化
+        if (!instance._injected) {
+          instance._injected = {};
+        }
+        instance._injected[key] = value;
+      } else if (!instance._injected) {
+        instance._injected = {};
+        instance._injected[key] = value;
+      }
+      
+      return value;
+    }
+    component = component.parent;
+  }
+
+  // 如果没有找到，返回默认值
+  if (arguments.length > 1) {
+    if (!instance._injected) {
+      instance._injected = {};
+    }
+    instance._injected[key] = defaultValue;
+    return defaultValue;
+  }
+
+  console.warn(`[XRender] injection "${key}" not found`);
+  return undefined;
 }

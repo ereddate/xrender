@@ -589,4 +589,91 @@ describe('Composition API - setup 函数', () => {
     child.init();
     expect(child.message).toBe('Hello from parent');
   });
+
+  it('应该在 setup 中使用 provide/inject 响应式数据', () => {
+    const ParentComponent = new Component('Parent', {
+      setup() {
+        const count = ref(0);
+        provide('count', count);
+        return { count };
+      },
+      render(createElem) {
+        return createElem('div', {}, `Parent: ${this.count.value}`);
+      }
+    });
+
+    const childOptions = {
+      setup() {
+        const count = inject('count');
+        return { count };
+      },
+      render(createElem) {
+        return createElem('div', {}, `Child: ${this.count.value}`);
+      }
+    };
+
+    const parent = ParentComponent.init();
+    const child = new Component('Child', childOptions, parent);
+    child.init();
+    expect(child.count.value).toBe(0);
+    parent.count.value = 10;
+    expect(child.count.value).toBe(10);
+  });
+
+  it('应该在 setup 中使用 provide/inject 响应式对象', () => {
+    const ParentComponent = new Component('Parent', {
+      setup() {
+        const state = reactive({ count: 0, name: 'test' });
+        provide('state', state);
+        return { state };
+      },
+      render(createElem) {
+        return createElem('div', {}, `Parent: ${this.state.count}`);
+      }
+    });
+
+    const childOptions = {
+      setup() {
+        const state = inject('state');
+        return { state };
+      },
+      render(createElem) {
+        return createElem('div', {}, `Child: ${this.state.count}`);
+      }
+    };
+
+    const parent = ParentComponent.init();
+    const child = new Component('Child', childOptions, parent);
+    child.init();
+    expect(child.state.count).toBe(0);
+    parent.state.count = 20;
+    expect(child.state.count).toBe(20);
+  });
+
+  it('应该在组件实例方法中使用 provide/inject', () => {
+    const ParentComponent = new Component('Parent', {
+      setup() {
+        provide('config', { theme: 'dark', lang: 'zh' });
+        return {};
+      },
+      render(createElem) {
+        return createElem('div', {}, 'Parent');
+      }
+    });
+
+    const childOptions = {
+      setup() {
+        const config = this.inject('config');
+        return { config };
+      },
+      render(createElem) {
+        return createElem('div', {}, `Theme: ${this.config.theme}`);
+      }
+    };
+
+    const parent = ParentComponent.init();
+    const child = new Component('Child', childOptions, parent);
+    child.init();
+    expect(child.config.theme).toBe('dark');
+  });
 });

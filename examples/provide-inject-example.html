@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XRender Provide/Inject API 示例</title>
+    <style>
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .demo-section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+        }
+        .demo-section h2 {
+            margin-top: 0;
+            color: #4CAF50;
+        }
+        .theme-demo {
+            padding: 20px;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .theme-demo.dark {
+            background: #333;
+            color: white;
+        }
+        .theme-demo.light {
+            background: white;
+            color: #333;
+        }
+        .user-info {
+            padding: 15px;
+            margin: 10px 0;
+            background: #e3f2fd;
+            border-radius: 4px;
+        }
+        .user-info h3 {
+            margin-top: 0;
+        }
+        .config-display {
+            padding: 10px;
+            background: #fff3e0;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            font-size: 14px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.secondary {
+            background: #2196F3;
+        }
+        button.secondary:hover {
+            background: #0b7dda;
+        }
+        .nested-child {
+            margin-left: 20px;
+            padding: 10px;
+            border-left: 2px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>XRender Provide/Inject API 示例</h1>
+        
+        <!-- 基础 Provide/Inject 示例 -->
+        <div class="demo-section">
+            <h2>1. 基础 Provide/Inject 示例</h2>
+            <div id="basic-provide-inject"></div>
+        </div>
+
+        <!-- 响应式数据 Provide/Inject 示例 -->
+        <div class="demo-section">
+            <h2>2. 响应式数据 Provide/Inject 示例</h2>
+            <div id="reactive-provide-inject"></div>
+        </div>
+
+        <!-- 主题切换示例 -->
+        <div class="demo-section">
+            <h2>3. 主题切换示例</h2>
+            <div id="theme-demo"></div>
+        </div>
+
+        <!-- 多层级嵌套示例 -->
+        <div class="demo-section">
+            <h2>4. 多层级嵌套示例</h2>
+            <div id="nested-demo"></div>
+        </div>
+
+        <!-- 批量 Provide/Inject 示例 -->
+        <div class="demo-section">
+            <h2>5. 批量 Provide/Inject 示例</h2>
+            <div id="batch-demo"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import Component, { createApp } from '../src/libs/core.js';
+        import { ref, reactive, computed, watch } from '../src/libs/reactivity.js';
+
+        // ========== 示例 1: 基础 Provide/Inject ==========
+        const BasicChild = new Component('BasicChild', {
+            setup(props, { inject }) {
+                const message = inject('message', '默认消息');
+                return { message };
+            },
+            render(createElem) {
+                return createElem('div', { class: 'user-info' }, [
+                    createElem('h3', {}, '子组件'),
+                    createElem('p', {}, `从父组件接收到的消息: ${this.message}`)
+                ]);
+            }
+        });
+
+        const BasicParent = new Component('BasicParent', {
+            setup(props, { provide }) {
+                provide('message', 'Hello from Parent!');
+                return {};
+            },
+            render(createElem) {
+                return createElem('div', {}, [
+                    createElem('h3', {}, '父组件'),
+                    new BasicChild('BasicChild', {})
+                ]);
+            }
+        });
+
+        createApp(BasicParent).mount('#basic-provide-inject');
+
+        // ========== 示例 2: 响应式数据 Provide/Inject ==========
+        const ReactiveChild = new Component('ReactiveChild', {
+            setup(props, { inject }) {
+                const count = inject('count');
+                const doubled = computed(() => count.value * 2);
+                return { count, doubled };
+            },
+            render(createElem) {
+                return createElem('div', { class: 'user-info' }, [
+                    createElem('h3', {}, '子组件'),
+                    createElem('p', {}, `计数器: ${this.count.value}`),
+                    createElem('p', {}, `双倍值: ${this.doubled.value}`),
+                    createElem('button', { '@click': () => this.count.value++ }, '子组件增加')
+                ]);
+            }
+        });
+
+        const ReactiveParent = new Component('ReactiveParent', {
+            setup(props, { provide }) {
+                const count = ref(0);
+                provide('count', count);
+                return { count };
+            },
+            render(createElem) {
+                return createElem('div', {}, [
+                    createElem('h3', {}, '父组件'),
+                    createElem('p', {}, `父组件计数器: ${this.count.value}`),
+                    createElem('button', { '@click': () => this.count.value++ }, '父组件增加'),
+                    new ReactiveChild('ReactiveChild', {})
+                ]);
+            }
+        });
+
+        createApp(ReactiveParent).mount('#reactive-provide-inject');
+
+        // ========== 示例 3: 主题切换 ==========
+        const ThemeChild = new Component('ThemeChild', {
+            setup(props, { inject }) {
+                const theme = inject('theme');
+                return { theme };
+            },
+            render(createElem) {
+                return createElem('div', { class: `theme-demo ${this.theme.value}` }, [
+                    createElem('h3', {}, '子组件'),
+                    createElem('p', {}, `当前主题: ${this.theme.value}`),
+                    createElem('button', { '@click': () => this.theme.value = this.theme.value === 'light' ? 'dark' : 'light' }, '切换主题')
+                ]);
+            }
+        });
+
+        const ThemeParent = new Component('ThemeParent', {
+            setup(props, { provide }) {
+                const theme = ref('light');
+                provide('theme', theme);
+                return { theme };
+            },
+            render(createElem) {
+                return createElem('div', {}, [
+                    createElem('h3', {}, '父组件'),
+                    createElem('button', { '@click': () => this.theme.value = this.theme.value === 'light' ? 'dark' : 'light' }, '父组件切换主题'),
+                    new ThemeChild('ThemeChild', {})
+                ]);
+            }
+        });
+
+        createApp(ThemeParent).mount('#theme-demo');
+
+        // ========== 示例 4: 多层级嵌套 ==========
+        const GrandChild = new Component('GrandChild', {
+            setup(props, { inject }) {
+                const config = inject('config');
+                return { config };
+            },
+            render(createElem) {
+                return createElem('div', { class: 'nested-child' }, [
+                    createElem('h4', {}, '孙组件'),
+                    createElem('div', { class: 'config-display' }, [
+                        createElem('p', {}, `语言: ${this.config.lang}`),
+                        createElem('p', {}, `版本: ${this.config.version}`)
+                    ])
+                ]);
+            }
+        });
+
+        const NestedChild = new Component('NestedChild', {
+            setup(props, { inject }) {
+                const config = inject('config');
+                return { config };
+            },
+            render(createElem) {
+                return createElem('div', { class: 'nested-child' }, [
+                    createElem('h3', {}, '子组件'),
+                    createElem('div', { class: 'config-display' }, [
+                        createElem('p', {}, `主题: ${this.config.theme}`),
+                        createElem('p', {}, `语言: ${this.config.lang}`)
+                    ]),
+                    new GrandChild('GrandChild', {})
+                ]);
+            }
+        });
+
+        const NestedParent = new Component('NestedParent', {
+            setup(props, { provide }) {
+                const config = reactive({
+                    theme: 'dark',
+                    lang: 'zh-CN',
+                    version: '1.0.0'
+                });
+                provide('config', config);
+                return { config };
+            },
+            render(createElem) {
+                return createElem('div', {}, [
+                    createElem('h3', {}, '父组件'),
+                    createElem('div', { class: 'config-display' }, [
+                        createElem('p', {}, `主题: ${this.config.theme}`),
+                        createElem('p', {}, `语言: ${this.config.lang}`),
+                        createElem('p', {}, `版本: ${this.config.version}`)
+                    ]),
+                    new NestedChild('NestedChild', {})
+                ]);
+            }
+        });
+
+        createApp(NestedParent).mount('#nested-demo');
+
+        // ========== 示例 5: 批量 Provide/Inject ==========
+        const BatchChild = new Component('BatchChild', {
+            setup(props, { inject }) {
+                const settings = injectObject(['apiUrl', 'timeout', 'retries']);
+                return { settings };
+            },
+            render(createElem) {
+                return createElem('div', { class: 'user-info' }, [
+                    createElem('h3', {}, '子组件'),
+                    createElem('div', { class: 'config-display' }, [
+                        createElem('p', {}, `API URL: ${this.settings.apiUrl}`),
+                        createElem('p', {}, `超时: ${this.settings.timeout}ms`),
+                        createElem('p', {}, `重试次数: ${this.settings.retries}`)
+                    ])
+                ]);
+            }
+        });
+
+        const BatchParent = new Component('BatchParent', {
+            setup(props, { provideObject }) {
+                provideObject({
+                    apiUrl: 'https://api.example.com',
+                    timeout: 5000,
+                    retries: 3
+                });
+                return {};
+            },
+            render(createElem) {
+                return createElem('div', {}, [
+                    createElem('h3', {}, '父组件'),
+                    createElem('p', {}, '已批量提供配置信息'),
+                    new BatchChild('BatchChild', {})
+                ]);
+            }
+        });
+
+        createApp(BatchParent).mount('#batch-demo');
+    </script>
+</body>
+</html>
