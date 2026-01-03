@@ -1,6 +1,55 @@
 import customDirectives from "./customDirectives.js";
 import { setCurrentInstance, getCurrentInstance, getGlobalWatchEffects } from "./reactivity.js";
 const doc = window.document;
+
+class ObjectPool {
+  constructor(createFn, resetFn, maxSize = 100) {
+    this.createFn = createFn;
+    this.resetFn = resetFn;
+    this.pool = [];
+    this.maxSize = maxSize;
+  }
+  
+  acquire() {
+    if (this.pool.length > 0) {
+      return this.pool.pop();
+    }
+    return this.createFn();
+  }
+  
+  release(obj) {
+    if (this.pool.length < this.maxSize) {
+      if (this.resetFn) {
+        this.resetFn(obj);
+      }
+      this.pool.push(obj);
+    }
+  }
+  
+  clear() {
+    this.pool = [];
+  }
+  
+  size() {
+    return this.pool.length;
+  }
+}
+
+const vnodePool = new ObjectPool(
+  () => ({ tag: null, attrs: null, children: null, key: null, el: null, isStatic: false }),
+  (vnode) => {
+    vnode.tag = null;
+    vnode.attrs = null;
+    vnode.children = null;
+    vnode.key = null;
+    vnode.el = null;
+    vnode.isStatic = false;
+  },
+  200
+);
+
+export { vnodePool };
+
 const createTextNode = function (text) {
   const textNode = doc.createTextNode(text);
   return textNode;
@@ -557,16 +606,70 @@ export class VNode {
     this.tag = tag;
     this.attrs = attrs || {};
     this.children = children || [];
-    this.key = attrs?.key; // 支持key属性优化diff
-    // 新增静态标记 - 支持isStatic和static属性
+    this.key = attrs?.key;
     this.isStatic = attrs?.isStatic || attrs?.static || false;
-    // 新增缓存标识
     this.cacheKey = attrs?.cacheKey || null;
     this.el = null;
+  }
+  
+  static create(tag, attrs, children) {
+    const vnode = vnodePool.acquire();
+    vnode.tag = tag;
+    vnode.attrs = attrs || {};
+    vnode.children = children || [];
+    vnode.key = attrs?.key;
+    vnode.isStatic = attrs?.isStatic || attrs?.static || false;
+    vnode.cacheKey = attrs?.cacheKey || null;
+    vnode.el = null;
+    return vnode;
+  }
+  
+  static release(vnode) {
+    if (vnode && vnode.tag) {
+      vnodePool.release(vnode);
+    }
   }
 }
 
 export class VDOMUtils {
+  static cache = new Map();
+  static maxCacheSize = 100;
+  
+  static getCacheKey(vnode) {
+    if (!vnode || vnode.isStatic === false) return null;
+    return `${vnode.tag}_${JSON.stringify(vnode.attrs)}_${vnode.children ? vnode.children.join('') : ''}`;
+  }
+  
+  static getCachedElement(vnode) {
+    const cacheKey = this.getCacheKey(vnode);
+    if (!cacheKey) return null;
+    
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      return cached.el.cloneNode(true);
+    }
+    return null;
+  }
+  
+  static cacheElement(vnode, el) {
+    const cacheKey = this.getCacheKey(vnode);
+    if (!cacheKey) return;
+    
+    if (this.cache.size >= this.maxCacheSize) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+    
+    this.cache.set(cacheKey, {
+      el: el.cloneNode(true),
+      vnode: vnode
+    });
+  }
+  
+  static clearCache() {
+    this.cache.clear();
+  }
+  
   // 创建真实DOM元素
   static createElement(vnode) {
     if (typeof vnode === 'string' || typeof vnode === 'number') {
@@ -580,12 +683,21 @@ export class VDOMUtils {
       return textNode;
     }
     
+    if (vnode.isStatic) {
+      const cachedEl = this.getCachedElement(vnode);
+      if (cachedEl) {
+        vnode.el = cachedEl;
+        return cachedEl;
+      }
+    }
+    
     const element = createElement(vnode.tag);
     
     this.setElementAttributes(element, vnode.attrs);
     
     if (vnode.isStatic) {
       element.setAttribute('data-static', 'true');
+      this.cacheElement(vnode, element);
     }
     
     if (vnode.children && vnode.children.length > 0) {
@@ -959,13 +1071,14 @@ class BatchUpdater {
   constructor() {
     this.pendingUpdates = new Set();
     this.isFlushing = false;
-    this.watchCallbacks = new Map(); // 存储watch回调列表
+    this.watchCallbacks = new Map();
+    this.scheduledIdleCallback = null;
+    this.useIdleCallback = typeof requestIdleCallback !== 'undefined';
   }
   
   add(component, key, value, oldVal) {
     this.pendingUpdates.add(component);
     
-    // 存储watch回调信息列表
     if (key !== undefined) {
       if (!this.watchCallbacks.has(component)) {
         this.watchCallbacks.set(component, []);
@@ -979,24 +1092,39 @@ class BatchUpdater {
   scheduleFlush() {
     if (!this.isFlushing) {
       this.isFlushing = true;
-      Promise.resolve().then(() => {
-        this.flush();
-      });
+      
+      if (this.useIdleCallback) {
+        if (this.scheduledIdleCallback) {
+          cancelIdleCallback(this.scheduledIdleCallback);
+        }
+        this.scheduledIdleCallback = requestIdleCallback(() => {
+          this.flush();
+        }, { timeout: 16 });
+      } else {
+        Promise.resolve().then(() => {
+          this.flush();
+        });
+      }
     }
   }
   
   flush() {
-    this.pendingUpdates.forEach(component => {
-      component.update();
-      
-      // 触发watch回调列表
-      const watchList = this.watchCallbacks.get(component);
-      if (watchList && watchList.length > 0) {
-        watchList.forEach(watchInfo => {
-          component.triggerWatch(watchInfo.key, watchInfo.value, watchInfo.oldVal);
-        });
+    this.scheduledIdleCallback = null;
+    
+    const updates = Array.from(this.pendingUpdates);
+    updates.forEach(component => {
+      if (component && !component.isDestroyed) {
+        component.update();
+        
+        const watchList = this.watchCallbacks.get(component);
+        if (watchList && watchList.length > 0) {
+          watchList.forEach(watchInfo => {
+            component.triggerWatch(watchInfo.key, watchInfo.value, watchInfo.oldVal);
+          });
+        }
       }
     });
+    
     this.pendingUpdates.clear();
     this.watchCallbacks.clear();
     this.isFlushing = false;

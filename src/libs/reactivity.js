@@ -11,6 +11,142 @@ let batchedEffects = new Set();
 let pendingEffects = new Set();
 let effectIdCounter = 0;
 
+let isFlushing = false;
+let flushPromise = null;
+
+const priorityQueue = {
+  high: [],
+  normal: [],
+  low: []
+};
+
+let scheduledUpdate = null;
+
+class LRUCache {
+  constructor(maxSize = 100) {
+    this.maxSize = maxSize;
+    this.cache = new Map();
+  }
+  
+  get(key) {
+    if (this.cache.has(key)) {
+      const value = this.cache.get(key);
+      this.cache.delete(key);
+      this.cache.set(key, value);
+      return value;
+    }
+    return undefined;
+  }
+  
+  set(key, value) {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+    this.cache.set(key, value);
+  }
+  
+  has(key) {
+    return this.cache.has(key);
+  }
+  
+  delete(key) {
+    return this.cache.delete(key);
+  }
+  
+  clear() {
+    this.cache.clear();
+  }
+  
+  size() {
+    return this.cache.size;
+  }
+}
+
+const computedCache = new LRUCache(50);
+
+class DependencyTracker {
+  constructor() {
+    this.dependencies = new Map();
+    this.reverseDependencies = new WeakMap();
+    this.cleanupQueue = new Set();
+  }
+  
+  track(effect, dep) {
+    if (!this.dependencies.has(effect)) {
+      this.dependencies.set(effect, new Set());
+    }
+    this.dependencies.get(effect).add(dep);
+    
+    if (!this.reverseDependencies.has(dep)) {
+      this.reverseDependencies.set(dep, new Set());
+    }
+    this.reverseDependencies.get(dep).add(effect);
+  }
+  
+  untrack(effect, dep) {
+    const deps = this.dependencies.get(effect);
+    if (deps) {
+      deps.delete(dep);
+      if (deps.size === 0) {
+        this.dependencies.delete(effect);
+      }
+    }
+    
+    const effects = this.reverseDependencies.get(dep);
+    if (effects) {
+      effects.delete(effect);
+      if (effects.size === 0) {
+        this.reverseDependencies.delete(dep);
+        this.cleanupQueue.add(dep);
+      }
+    }
+  }
+  
+  cleanup(effect) {
+    const deps = this.dependencies.get(effect);
+    if (deps) {
+      deps.forEach(dep => {
+        const effects = this.reverseDependencies.get(dep);
+        if (effects) {
+          effects.delete(effect);
+          if (effects.size === 0) {
+            this.cleanupQueue.add(dep);
+          }
+        }
+      });
+      this.dependencies.delete(effect);
+    }
+  }
+  
+  processCleanupQueue() {
+    if (this.cleanupQueue.size === 0) return;
+    
+    const toCleanup = Array.from(this.cleanupQueue);
+    this.cleanupQueue.clear();
+    
+    for (let i = 0; i < toCleanup.length; i++) {
+      const dep = toCleanup[i];
+      if (dep && typeof dep.cleanup === 'function') {
+        try {
+          dep.cleanup();
+        } catch (error) {
+          console.error('[DependencyTracker] Error during cleanup:', error);
+        }
+      }
+    }
+  }
+  
+  clear() {
+    this.dependencies.clear();
+    this.cleanupQueue.clear();
+  }
+}
+
+const dependencyTracker = new DependencyTracker();
+
 export function setCurrentInstance(instance) {
   currentInstance = instance;
 }
@@ -34,31 +170,70 @@ export function batch(fn) {
 }
 
 function flushBatchedEffects() {
-  if (pendingEffects.size === 0) return;
+  if (isFlushing) {
+    return flushPromise;
+  }
   
-  const effects = Array.from(pendingEffects);
-  pendingEffects.clear();
+  if (pendingEffects.size === 0 && priorityQueue.high.length === 0 && 
+      priorityQueue.normal.length === 0 && priorityQueue.low.length === 0) {
+    return Promise.resolve();
+  }
   
-  effects.forEach(effect => {
-    if (typeof effect === 'function') {
-      try {
-        effect();
-      } catch (error) {
-        console.error('[reactivity] Error in batched effect:', error);
-      }
-    } else if (effect && effect.active) {
-      try {
-        effect();
-      } catch (error) {
-        console.error('[reactivity] Error in batched effect:', error);
+  isFlushing = true;
+  
+  flushPromise = Promise.resolve().then(() => {
+    const effectsToRun = [];
+    
+    while (priorityQueue.high.length > 0) {
+      effectsToRun.push(priorityQueue.high.shift());
+    }
+    
+    effectsToRun.push(...Array.from(pendingEffects));
+    pendingEffects.clear();
+    
+    while (priorityQueue.normal.length > 0) {
+      effectsToRun.push(priorityQueue.normal.shift());
+    }
+    
+    while (priorityQueue.low.length > 0) {
+      effectsToRun.push(priorityQueue.low.shift());
+    }
+    
+    for (let i = 0; i < effectsToRun.length; i++) {
+      const effect = effectsToRun[i];
+      if (typeof effect === 'function') {
+        try {
+          effect();
+        } catch (error) {
+          console.error('[reactivity] Error in batched effect:', error);
+        }
+      } else if (effect && effect.active) {
+        try {
+          effect();
+        } catch (error) {
+          console.error('[reactivity] Error in batched effect:', error);
+        }
       }
     }
+    
+    dependencyTracker.processCleanupQueue();
+    
+    isFlushing = false;
+    flushPromise = null;
   });
+  
+  return flushPromise;
 }
 
-function queueEffect(effect) {
+function queueEffect(effect, priority = 'normal') {
   if (isBatching) {
-    pendingEffects.add(effect);
+    if (priority === 'high') {
+      priorityQueue.high.push(effect);
+    } else if (priority === 'low') {
+      priorityQueue.low.push(effect);
+    } else {
+      pendingEffects.add(effect);
+    }
   } else {
     if (typeof effect === 'function') {
       try {
@@ -440,6 +615,7 @@ export function computed(getterOrOptions) {
   let _deps = new Set();
   let _computing = false;
   let _version = 0;
+  let _cacheKey = `computed_${effectIdCounter}_${Date.now()}`;
 
   const computedRef = {
     __isComputed: true,
@@ -471,11 +647,22 @@ export function computed(getterOrOptions) {
           _deps = newDeps;
           _dirty = false;
           _version++;
+          
+          computedCache.set(_cacheKey, {
+            value: cachedValue,
+            version: _version,
+            deps: newDeps
+          });
         } catch (error) {
           console.error('[computed] Error during computation:', error);
         } finally {
           activeEffect = prevActiveEffect;
           _computing = false;
+        }
+      } else if (!_dirty) {
+        const cached = computedCache.get(_cacheKey);
+        if (cached && cached.version === _version) {
+          return cached.value;
         }
       }
       
@@ -491,6 +678,7 @@ export function computed(getterOrOptions) {
       setter(newValue);
       _dirty = true;
       _version++;
+      computedCache.delete(_cacheKey);
     },
     get _dirty() {
       return _dirty;
